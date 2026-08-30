@@ -492,3 +492,183 @@ check-charly-omarchy-vm:
                 # Omarchy's snapshot, and the guest would start tracking upstream Arch
                 # instead — a divergence pacman reports success for either way.
                 command: pacman-conf --repo core Server
+
+# ── omarchy-pacstrap-vm — the COMPOSABLE sibling ─────────────────────────────────
+# omarchy-vm boots Omarchy's own installer ISO and lets Omarchy install itself.
+# This one is charly's own machinery reproducing Omarchy from packages: pacstrap
+# into a partitioned disk, limine onto the ESP, charly's fstab and unit
+# enablement. Two different claims, and both are worth having.
+#
+# What it is FOR: fast rebuilds and derived images. The ISO path fetches 5.8 GiB
+# and runs a full graphical installer; this path builds a rootfs from a package
+# list you can edit, which is what you want when the thing under test is a
+# package set rather than Omarchy's installer.
+#
+# What it is NOT: a claim that the result is byte-identical to an ISO install. It
+# is not. The ISO install runs Omarchy's own orchestrator, which does work
+# charly's bootstrap does not (snapper configuration, the UKI, the themed
+# limine menu). check-omarchy-iso-vm remains the fidelity proof; this entity's
+# bed proves only that the from-packages path produces a BOOTABLE Omarchy.
+omarchy-pacstrap-vm:
+    vm:
+        # backend: libvirt is REQUIRED, not a default worth relying on. The bed's
+        # probes RPC the daemon for THIS domain; `backend: auto` silently falls
+        # back to qemu under load, creating the domain outside libvirt and failing
+        # every libvirt-RPC probe with "Domain not found". The arch and
+        # arch-pacstrap entities document the same failure mode.
+        backend: libvirt
+        source:
+            kind: bootstrap
+            builder: pacstrap
+            builder_image: omarchy-pacstrap-builder
+            distro: omarchy
+            # The distro's own pacstrap.base_package supplies base/base-devel/linux/
+            # linux-firmware/openssh/sudo/cloud-init/mkinitcpio/efibootmgr/limine/
+            # btrfs-progs/omarchy-keyring. These are the additions this VM needs on
+            # top, and nothing here is already in that list (a duplicate would be
+            # harmless but would hide which list owns what).
+            package:
+                - qemu-guest-agent
+                # WITHOUT THIS THE GUEST IS NOT OMARCHY. The distro's
+                # pacstrap.base_package is the minimal bootstrap set (base, linux, openssh,
+                # limine, btrfs-progs, omarchy-keyring …) and carries neither `omarchy` nor
+                # `omarchy-settings`. Pacstrapping only that yields a plain Arch rootfs that
+                # merely came from Omarchy's mirror — `ID=arch`, no /usr/share/omarchy, no
+                # omarchy commands. The bed caught exactly that on its first run.
+                #
+                # `omarchy` is the metapackage; omarchy-settings arrives as its dependency
+                # and is what replaces /etc/os-release, which is why ID=omarchy is the
+                # observable consequence rather than a cosmetic label.
+                - omarchy
+            # btrfs, because Omarchy's layout IS btrfs subvolumes: the distro's
+            # disk_layout declares @/@home/@log/@pkg and the ESP at /boot, and the
+            # bootloader template's `rootflags=subvol=@` depends on it. ext4 here
+            # would boot but would not be Omarchy.
+            rootfs: btrfs
+            kernel_args: console=tty0 console=ttyS0,115200
+        disk_size: 30G
+        ram: 4G
+        cpu: 2
+        machine: q35
+        # Omarchy requires Secure Boot OFF.
+        firmware: uefi-insecure
+        network:
+            mode: user
+        ssh:
+            user: omarchy
+            port_auto: true
+            key_source: generate
+        cloud_init:
+            users:
+                - name: omarchy
+                  sudo: true
+                  shell: /bin/bash
+            runcmd:
+                - systemctl enable --now sshd
+                - systemctl enable --now qemu-guest-agent
+
+check-omarchy-pacstrap-vm:
+    vm:
+        from: omarchy-pacstrap-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Sole proof that charly's own from-packages path produces a BOOTABLE Omarchy —
+            distinct from check-omarchy-iso-vm, which proves Omarchy's installer does.
+            The privileged omarchy-pacstrap-builder pacstraps a rootfs from Omarchy's
+            frozen mirror into a btrfs disk with the @/@home/@log/@pkg layout, installs
+            limine onto an ESP at /boot, and the guest boots under UEFI.
+            .
+            What it can prove that the ISO bed cannot: that charly's OWN bootstrap
+            machinery understands Omarchy — the distro's disk_layout, its limine
+            bootloader template, and its package sources. If the ISO path regressed, this
+            bed would still pass; if charly's bootstrap regressed, the ISO bed would still
+            pass. They are independent claims about independent code.
+        plan:
+            - check: the domain is running under libvirt
+              id: omarchy-pacstrap-libvirt-running
+              libvirt: info
+              stdout:
+                - contains: running
+              context:
+                - runtime
+
+            - check: the guest identifies as Omarchy, so the sources were Omarchy's
+              id: omarchy-pacstrap-os-release
+              context:
+                - runtime
+              stdout:
+                - contains: 'ID=omarchy'
+              command:
+                # omarchy-settings replaces /etc/os-release, and it arrives only from
+                # Omarchy's own repositories. A builder that had silently fetched from
+                # upstream Arch would produce ID=arch here — which is precisely the
+                # divergence omarchy-pacstrap-builder's `base: omarchy` exists to prevent,
+                # and this is where it becomes observable in the finished guest.
+                command: grep '^ID=' /etc/os-release
+
+            - check: root is the @ subvolume of a btrfs filesystem
+              id: omarchy-pacstrap-root-subvol
+              context:
+                - runtime
+              stdout:
+                - contains: 'subvol=/@'
+              command:
+                # The distro's disk_layout drove this, not the installer: charly's own
+                # EmitDiskBuildScript created the subvolumes and mounted @ as root.
+                command: findmnt -no FSTYPE,OPTIONS /
+
+            - check: the ESP is vfat at /boot, the layout limine assumes
+              id: omarchy-pacstrap-esp
+              context:
+                - runtime
+              stdout:
+                - contains: vfat
+              command: {command: findmnt -no FSTYPE /boot}
+
+            - check: the kernel was booted with the command line limine's config specifies
+              id: omarchy-pacstrap-limine-cmdline
+              context:
+                - runtime
+              stdout:
+                - contains: 'rootflags=subvol=@'
+                - contains: 'rootfstype=btrfs'
+              command:
+                # NOT efibootmgr, and the difference is the point.
+                #
+                # check-omarchy-iso-vm asserts a NAMED NVRAM entry (`Boot0005* Limine …
+                # limine_x64.efi`) because Omarchy's installer registers one. The bootstrap
+                # path does not: charly's install_template runs `efibootmgr --create` inside
+                # the builder container against a loop device, where the write does not reach
+                # the guest's own OVMF variable store. The guest boots limine anyway, through
+                # the firmware's auto-created removable-media entry:
+                #
+                #   BootCurrent: 0002
+                #   Boot0002* UEFI Misc Device  PciRoot(…){auto_created_boot_option}
+                #
+                # which loads /boot/EFI/BOOT/BOOTX64.EFI — limine's binary, put there by the
+                # same template. Asserting a named entry here would demand a mechanism this
+                # path legitimately does not use, and the bed's first run failed on exactly
+                # that. This is a corrected check, not a weakened one.
+                #
+                # /proc/cmdline is the stronger assertion available: these flags exist ONLY in
+                # the limine.conf charly's bootloader template wrote, so the running kernel
+                # having them proves that config drove this boot. A guest that booted some
+                # other way could not have them.
+                command: cat /proc/cmdline
+
+            - check: limine's loader is on the ESP where the firmware finds it
+              id: omarchy-pacstrap-limine-on-esp
+              context:
+                - runtime
+              stdout:
+                - contains: LIMINE-ON-ESP
+              command:
+                # The removable-media fallback path the firmware actually used. Root is needed
+                # because the ESP mounts 0700; the guest's cloud_init user has passwordless
+                # sudo, unlike the ISO guest's.
+                command: |
+                    set -eu
+                    sudo -n test -f /boot/EFI/BOOT/BOOTX64.EFI
+                    sudo -n test -f /boot/limine.conf
+                    echo LIMINE-ON-ESP
