@@ -73,3 +73,88 @@ check-omarchy-cstream-pod:
             Hyprland binds v6), so the desktop depends on gst-wayland-display being the
             parent, and on the box deriving FROM the omarchy base image so every layer
             resolves against the same package snapshot.
+
+# ── Omarchy as a VM ──────────────────────────────────────────────────────────────────
+#
+# omarchy-vm is the FAITHFUL one: it boots Omarchy's own official installer ISO, fully
+# unattended. What you get is what Omarchy's authors ship — limine + a UKI, btrfs
+# @/@home/@log/@pkg, snapper, sddm + uwsm. Charly supplies only the answers.
+#
+# A composable sibling (omarchy-pacstrap-vm, charly's own machinery reproducing Omarchy
+# from packages) is NOT here yet: it needs an omarchy-pacstrap-builder box, which needs
+# `limine` added to layer-pacstrap-builder first — the bootloader install runs INSIDE the
+# builder container against the mounted target, so the binary must exist there. That is
+# its own repo's PR, and an entity naming a builder box that does not exist would not
+# validate.
+#
+# A `charly-omarchy` keeper deploy would be a DEPLOY of this template, not a second
+# template: a deploy's `from:` carries deploy-scope fields only (add_candy, install_opts,
+# disposable, env, plan) and the VM SPEC comes wholly from the named kind: vm entity, so
+# credentials live here and are never restated.
+
+omarchy-vm:
+    vm:
+        # THE canonical Omarchy VM: the official ISO, run unattended.
+        #
+        # The ISO is 5.8 GiB. It is fetched once into charly's content-addressed cache,
+        # sha256-verified against the .sha256 sidecar the publisher serves (no checksum
+        # value is authored here — pinning a literal would go stale on every point
+        # release while the sidecar cannot), and shared by every VM built from this URL.
+        #
+        # user / user with NO disk encryption, and that combination is deliberate. An
+        # encrypted install is NOT fully unattended — someone types the LUKS passphrase
+        # at first boot — and its passphrase sits in PLAINTEXT in the seed's
+        # disk_encryption block, which would make this file a secret. With encrypt:
+        # false there is no such block and nothing on the seed that is not already
+        # public. Treat anything reachable from a VM built on this template as public.
+        source:
+            kind: iso
+            distro: omarchy
+            url: https://iso.omarchy.org/omarchy-4.0.1.iso
+            checksum: {type: sha256}
+            install_timeout: 45m
+            installer:
+                username: user
+                # PLAINTEXT here, crypt()ed to a $6$ SHA-512 hash by the builder before
+                # it reaches any template — the plaintext never lands on the seed. The
+                # answers volume carries only the hash.
+                password: user
+                full_name: Charly
+                email: charly@opencharly.invalid
+                hostname: omarchy
+                timezone: UTC
+                keyboard: us
+                locale: en_US.UTF-8
+                disk: /dev/vda
+                encrypt: false
+                # ssh_authorized_key is deliberately ABSENT: it defaults to the public
+                # half of ssh.key_source: generate below. That default is what makes the
+                # guest reachable at all — a stock Omarchy install ships openssh with the
+                # service DISABLED and the port CLOSED, and the installer treats the
+                # presence of an authorized_keys file on the seed as the instruction to
+                # enable sshd and open the firewall. Naming a key here would silence that
+                # default without saying so.
+        disk_size: 40G
+        ram: 8G
+        cpu: 4
+        machine: q35
+        # Omarchy requires Secure Boot OFF.
+        firmware: uefi-insecure
+        network: {mode: user}
+        ssh: {user: user, port_auto: true, key_source: generate}
+        backend: libvirt
+        # A DISPLAY IS REQUIRED, not decorative. Omarchy's installer runs in a graphical
+        # session on the ISO's live environment; a domain with no video device boots the
+        # medium, runs cloud-init against the seed, and then sits idle forever with the
+        # disk untouched — measured. The spice head is also what lets `charly check spice
+        # screenshot` watch an unattended install actually progress, which is the only
+        # way to see where one stalls.
+        libvirt:
+            devices:
+                channels: [{type: spicevmc, name: com.redhat.spice.0}]
+                graphics: [{type: spice, listen: [{type: socket}]}]
+                video: [{model: virtio, vram: 65536, heads: 1, accel3d: false}]
+                rng: [{model: virtio, backend: /dev/urandom}]
+                memballoon: {model: virtio}
+            snippets:
+                - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
