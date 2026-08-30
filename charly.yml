@@ -382,17 +382,29 @@ check-omarchy-iso-vm:
               # user_full_name.txt and user_email_address.txt are OPTIONAL seed files.
               # Asserting them proves charly's renderer emitted the optional half of the
               # answer set and the installer consumed it — not just the required half.
-              # Reading ~/.gitconfig directly is what `git config --global` would print.
-              # The absolute path, not ${HOME}: runtime variables come from OCI image
-              # metadata, and a source.kind: iso VM has no charly-built image to carry
-              # them — ${HOME} would expand to nothing and this would probe /.gitconfig.
-              # /home/user is deterministic here: it is the account the seed created and
-              # the one omarchy-iso-vm-account asserts directly above.
-              file:
-                  file: /home/user/.gitconfig
-                  contains:
-                      - Charly
-                      - charly@opencharly.invalid
+              #
+              # This one ASKS GIT rather than reading a file, and that is deliberate. An
+              # earlier revision of this check probed /home/user/.gitconfig with `file:`
+              # and FAILED (`exists=false`) against a guest whose identity was correctly
+              # applied: git's `--global` scope resolves to $XDG_CONFIG_HOME/git/config
+              # when that file already exists, and omarchy-settings ships /etc/skel/.config
+              # — which the installer copies into the new account — so the identity lands
+              # in ~/.config/git/config, measured on the live guest:
+              #
+              #     $ ls ~/.gitconfig            -> No such file or directory
+              #     $ ls ~/.config/git/config    -> -rw-r--r-- 1 user user 978
+              #     $ git config --global --get-regexp '^user\.'
+              #     user.name Charly
+              #     user.email charly@opencharly.invalid
+              #
+              # The assertion is "the identity was APPLIED", and git's own resolution is
+              # what "applied" means. Hardcoding either path asserts something narrower
+              # and breaks when the other one is in play. Do not convert this to `file:`.
+              stdout:
+                  - contains: Charly
+                  - contains: charly@opencharly.invalid
+              command:
+                  command: git config --global --get-regexp '^user\.'
 
             # ── the runtime the ISO installs ─────────────────────────────────────
             # One `package:` per package rather than a single `pacman -Q` over ten: the
