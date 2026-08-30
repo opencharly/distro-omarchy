@@ -15,6 +15,17 @@ omarchy:
         # subvolumes, plymouth in an initramfs, an sddm seat, uwsm's systemd user
         # manager, ufw's netfilter tables, dockerd, dkms) belong to the machine images,
         # not here.
+        description: |
+            The canonical Omarchy base image — plain Arch plus Omarchy's own package
+            sources and runtime.
+            Omarchy publishes no container image, only an installer ISO, so what makes
+            this image Omarchy is the package set and the repositories it comes from,
+            both supplied by the omarchy-base layer. This box is the pod-safe floor: the
+            boot and display stack arrives as a hard dependency of the omarchy package
+            and is left inert, while machine-only surfaces belong to the machine images.
+            Its own observable claim is the one thing no layer can assert for it — that
+            the [omarchy, arch] tag chain resolved, so Omarchy's package sources are in
+            effect on an Arch base.
         base: arch.arch
         build:
             - pac
@@ -28,6 +39,19 @@ omarchy:
             - arch
         candy:
             - '@github.com/opencharly/layer-omarchy-base/candy/omarchy-base:v2026.242.0437'
-        # No box-level check: every claim this image makes belongs to omarchy-base's
-        # members and is asserted there, so one candy's checks cover every box that
-        # composes it (R3).
+        plan:
+            # The layer asserts everything about the package sources and runtime; this
+            # box asserts only what is true of the BOX and of no layer — that the
+            # [omarchy, arch] tag chain actually resolved. If the chain broke, the layer's
+            # own checks would still pass on an Arch image with no Omarchy sources, so
+            # this is the one claim that cannot be delegated (R3).
+            - check: the omarchy tag chain resolved — Omarchy's sources are in effect on an Arch base
+              id: omarchy-box-tag-chain
+              context:
+                - build
+              exit_status: 0
+              command: |
+                  set -eu
+                  grep -q '^ID=arch' /etc/os-release
+                  pacman-conf --repo omarchy Server | grep -q 'pkgs\.omarchy\.org'
+                  pacman -Q omarchy >/dev/null
