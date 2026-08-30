@@ -1,0 +1,73 @@
+omarchy:
+    candy:
+        version: 2026.242.0000
+        # The canonical Omarchy base image, and the POD-SAFE floor.
+        #
+        # base: arch.arch — the plain Arch base from distro-arch, not the Omarchy ISO.
+        # Omarchy publishes no container image; what makes this image Omarchy is the
+        # package set and the sources it comes from, both supplied by omarchy-base.
+        #
+        # Pod-safe means: nothing here enables a boot, seat or device-owning service.
+        # The omarchy package hard-depends on limine, limine-mkinitcpio-hook,
+        # limine-snapper-sync, snapper and sddm, so the whole boot/DM stack IS installed
+        # — it is simply inert. omarchy-base keeps the limine alpm hooks off the image
+        # entirely (pacman NoExtract) and no unit is ever enabled. Machine-only surfaces (limine on a real ESP, snapper
+        # subvolumes, plymouth in an initramfs, an sddm seat, uwsm's systemd user
+        # manager, ufw's netfilter tables, dockerd, dkms) belong to the machine images,
+        # not here.
+        description: |
+            The canonical Omarchy base image — plain Arch plus Omarchy's own package
+            sources and runtime.
+            Omarchy publishes no container image, only an installer ISO, so what makes
+            this image Omarchy is the package set and the repositories it comes from,
+            both supplied by the omarchy-base layer. This box is the pod-safe floor: the
+            boot and display stack arrives as a hard dependency of the omarchy package
+            and is left inert, while machine-only surfaces belong to the machine images.
+            Its own observable claim is the one thing no layer can assert for it — that
+            the [omarchy, arch] tag chain resolved, so Omarchy's package sources are in
+            effect on an Arch base.
+        base: arch.arch
+        build:
+            - pac
+        platform:
+            # x86_64 only: pkgs.omarchy.org publishes no aarch64 tree.
+            - linux/amd64
+        # THE TAG CHAIN. `omarchy` first so an omarchy-specific package section wins;
+        # `arch` second so every existing `distro: arch:` candy section applies unchanged.
+        distro:
+            - omarchy
+            - arch
+        candy:
+            - '@github.com/opencharly/layer-omarchy-base/candy/omarchy-base:v2026.242.0437'
+        plan:
+            # The layer asserts everything about the package sources and runtime; this
+            # box asserts only what is true of the BOX and of no layer — that the
+            # [omarchy, arch] tag chain actually resolved. If the chain broke, the layer's
+            # own checks would still pass on an Arch image with no Omarchy sources, so
+            # this is the one claim that cannot be delegated (R3).
+            - check: the image identifies as Omarchy with an arch ID_LIKE, and Omarchy's sources are in effect
+              id: omarchy-box-identity
+              context:
+                - build
+              # omarchy-settings REPLACES /etc/os-release, so the built image reports
+              # ID=omarchy / ID_LIKE=arch — not ID=arch, which an earlier version of this
+              # check wrongly asserted and which the bed caught.
+              #
+              # Both halves matter and neither is redundant:
+              #   - ID=omarchy is why `omarchy` is its own #DistroID rather than an alias
+              #     of arch. charly's host detection reads this field; an image that said
+              #     ID=arch would be indistinguishable from plain Arch.
+              #   - ID_LIKE=arch is what makes hostenv.PopulateTags emit the arch fallback
+              #     automatically, which is the same chain `distro: [omarchy, arch]`
+              #     declares at build time. If it regressed, every `distro: arch:` candy
+              #     section would stop applying and packages would silently not install.
+              #
+              # The repo and package assertions confirm the sources behind that identity
+              # are actually configured, so the check cannot pass on a relabelled Arch.
+              exit_status: 0
+              command: |
+                  set -eu
+                  grep -q '^ID=omarchy$' /etc/os-release
+                  grep -q '^ID_LIKE=arch$' /etc/os-release
+                  pacman-conf --repo omarchy Server | grep -q 'pkgs\.omarchy\.org'
+                  pacman -Q omarchy >/dev/null

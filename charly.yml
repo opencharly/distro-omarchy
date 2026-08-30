@@ -1,0 +1,61 @@
+#  opencharly/distro-omarchy — the Omarchy image family (charly's box/omarchy).
+#
+#  Omarchy (omacom/omarchy) is DHH's opinionated distribution: vanilla Arch + Hyprland,
+#  with its own package repository AND its own pinned snapshot of the Arch repositories.
+#
+#  ARCH-DERIVED, via the TAG CHAIN. Every box carries `distro: [omarchy, arch]`, so an
+#  omarchy: package section wins where one exists and all 99 existing `distro: arch:`
+#  candy sections apply unchanged everywhere else. No candy needs an omarchy: section;
+#  one is added only where a package NAME genuinely differs from Arch's. This is the
+#  same mechanism distro-cachyos uses, and it is why this repo vendors almost nothing.
+#
+#  x86_64 ONLY. pkgs.omarchy.org publishes no aarch64 tree (verified: 404), so every box
+#  pins platform: [linux/amd64] and there is no archarm sibling.
+#
+#  We do NOT run Omarchy's own installer. In 4.x there is no install.sh at the repo root
+#  at all: `install/` is the machinery the ISO runs, and the ISO is the install path.
+#  charly composes the same four packages the ISO installs (omarchy, omarchy-settings,
+#  omarchy-keyring, omarchy-nvim) from the same repositories — see layer-omarchy-base.
+#  All 148 base packages resolve with plain pacman (23 from [omarchy], 125 from
+#  core/extra/multilib served by Omarchy's mirror snapshot), which is why the base box is
+#  `build: [pac]` with NO aur builder.
+version: 2026.240.1943
+repo: github.com/opencharly/distro-omarchy
+defaults:
+    platform:
+        - linux/amd64
+    tag: auto
+    registry: ghcr.io/opencharly
+    build:
+        - pac
+    merge:
+        auto: false
+        max_mb: 128
+import:
+    # The Arch base and builder stack lives in opencharly/distro-arch. One-directional:
+    # arch imports nothing back.
+    - arch: '@github.com/opencharly/distro-arch:v2026.241.1429'
+discover:
+    - path: box
+      recursive: true
+    - path: candy
+      recursive: true
+
+# ── disposable R10 beds ──────────────────────────────────────────────────────────
+# `disposable: true` is the SOLE authorization for the unattended destroy + rebuild
+# `charly check run` performs. Zero operator side-effect: rootless podman, no writes to
+# ~/.local/bin, ~/.config/opencharly, /etc or any operator-side directory.
+check-omarchy-pod:
+    pod:
+        image: omarchy
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Sole proof that the Omarchy base image composes from plain Arch plus Omarchy's
+            own package sources. Builds the omarchy box and asserts, on the built image,
+            that pacman resolves core/extra/multilib from Omarchy's pinned mirror snapshot
+            rather than upstream Arch, that the [omarchy] repository answers and its
+            packaging key is locally signed, that omarchy and omarchy-settings install
+            with plain pacman and no AUR builder, that the four limine alpm hooks a
+            container cannot satisfy were never extracted onto the image, and that
+            /etc/skel is seeded into the image user's home.
