@@ -512,6 +512,274 @@ check-omarchy-iso-vm:
                   enabled: true
                   running: true
 
+            # ══ upstream test/acceptance.d/system-test.sh ═══════════════════════════════
+            # Ported from omacom/omarchy@quattro. Upstream groups its assertions into five
+            # bash functions (verify_core_packages / _defaults / _services / _runtime_tools
+            # / _user_setup) and fails the whole group at its first bad line; each is one
+            # typed step here, so a failure names the exact fact that is wrong.
+
+            # ── the services a desktop needs enabled ────────────────────────────────────
+            - check: NetworkManager is enabled and running
+              id: omarchy-sys-networkmanager
+              context:
+                  - runtime
+              service:
+                  service: NetworkManager.service
+                  enabled: true
+                  running: true
+
+            - check: systemd-resolved is enabled and running
+              id: omarchy-sys-resolved
+              context:
+                  - runtime
+              service:
+                  service: systemd-resolved.service
+                  enabled: true
+                  running: true
+
+            - check: the ufw firewall is enabled and running
+              id: omarchy-sys-ufw
+              context:
+                  - runtime
+              service:
+                  service: ufw.service
+                  enabled: true
+                  running: true
+
+            - check: sddm is enabled — the graphical session starts at boot
+              id: omarchy-sys-sddm
+              context:
+                  - runtime
+              service:
+                  service: sddm.service
+                  enabled: true
+
+            - check: avahi-daemon is enabled
+              id: omarchy-sys-avahi
+              context:
+                  - runtime
+              service:
+                  service: avahi-daemon.service
+                  enabled: true
+
+            - check: power-profiles-daemon is enabled
+              id: omarchy-sys-ppd
+              context:
+                  - runtime
+              service:
+                  service: power-profiles-daemon.service
+                  enabled: true
+
+            - check: the docker socket is enabled — the daemon is reachable through polkit
+              id: omarchy-sys-docker-socket
+              context:
+                  - runtime
+              service:
+                  service: docker.socket
+                  enabled: true
+
+            # ── the whole-machine assertion, both managers ──────────────────────────────
+            # The strongest check in the suite: it catches the unit nobody thought to name.
+            # A fresh VM should need no `ignore:` regex, and deliberately has none — the
+            # moment one is needed, that is a finding rather than a configuration detail.
+            - check: no system unit is in the failed state
+              id: omarchy-sys-none-failed-system
+              context:
+                  - runtime
+              eventually: 90s
+              service:
+                  none_failed: true
+
+            - check: no user unit is in the failed state
+              id: omarchy-sys-none-failed-user
+              context:
+                  - runtime
+              eventually: 90s
+              service:
+                  scope: user
+                  none_failed: true
+
+            # ── the user audio stack ────────────────────────────────────────────────────
+            # Session services, not system ones. Before `scope: user` these had no typed
+            # form at all and the repo reached for `command: systemctl --user ...` in 85
+            # places.
+            - check: pipewire is running in the user session
+              id: omarchy-sys-pipewire
+              context:
+                  - runtime
+              eventually: 60s
+              service:
+                  service: pipewire.service
+                  scope: user
+                  running: true
+
+            - check: wireplumber is running in the user session
+              id: omarchy-sys-wireplumber
+              context:
+                  - runtime
+              eventually: 60s
+              service:
+                  service: wireplumber.service
+                  scope: user
+                  running: true
+
+            # ── the security posture upstream asserts, and why ──────────────────────────
+            # The docker group is root-equivalent: a member can `docker run -v /:/host` its
+            # way to passwordless root. Omarchy deliberately does NOT put the desktop user
+            # in it — the daemon is reached through a polkit/sudo prompt instead. Asserting
+            # the absence is the point; asserting it EXACTLY is why `not_groups` is a set
+            # and not a `contains:` matcher, which would also match `docker-users`.
+            - check: the desktop user is NOT in the root-equivalent docker group
+              id: omarchy-sys-user-not-in-docker
+              context:
+                  - runtime
+              user:
+                  user: user
+                  not_groups:
+                      - docker
+
+            - check: the desktop user cannot reach the docker daemon without elevation
+              id: omarchy-sys-docker-unreachable
+              context:
+                  - runtime
+              # The group name being absent is not sufficient — a world-writable socket or
+              # an ACL would still hand the user the root daemon. This proves the daemon is
+              # actually unreachable, which is a NEGATIVE assertion: `expect_non_zero` is
+              # the only honest way to say "this must fail".
+              command:
+                  command: docker info
+                  expect_non_zero: true
+
+            # ── the runtime tools the desktop is built around ───────────────────────────
+            - check: neovim starts headlessly
+              id: omarchy-sys-nvim-headless
+              context:
+                  - runtime
+              command:
+                  command: nvim --headless +qa
+
+            - check: fastfetch can read system information
+              id: omarchy-sys-fastfetch
+              context:
+                  - runtime
+              command:
+                  command: fastfetch --pipe false
+
+            # ── the user state Omarchy's own tooling writes ─────────────────────────────
+            - check: a current theme is recorded in the user's omarchy state
+              id: omarchy-sys-state-theme
+              context:
+                  - runtime
+              file:
+                  file: /home/user/.local/state/omarchy/current/theme
+                  exists: true
+
+            - check: a current background is recorded in the user's omarchy state
+              id: omarchy-sys-state-background
+              context:
+                  - runtime
+              file:
+                  file: /home/user/.local/state/omarchy/current/background
+                  exists: true
+
+            - check: the shell configuration exists and is valid JSON
+              id: omarchy-sys-shell-json
+              context:
+                  - runtime
+              # `file: {contains:}` would prove text is present, not that the document
+              # parses — and an unparseable shell.json is exactly the failure that leaves a
+              # desktop with no bar. Asking jq is the assertion.
+              command:
+                  command: jq empty /home/user/.config/omarchy/shell.json
+
+            # ── the XDG user directories the installer creates ──────────────────────────
+            # NOT asserted: Documents and Desktop. Upstream checks
+            # `[[ -d $(xdg-user-dir DOCUMENTS) ]]`, and on this guest
+            # ~/.config/user-dirs.dirs defines only XDG_DESKTOP_DIR="$HOME/" — so
+            # xdg-user-dir falls back to $HOME for both, $HOME is a directory, and
+            # upstream's check passes VACUOUSLY without either directory existing.
+            # Measured on the installed guest: ~/Documents and ~/Desktop are absent while
+            # ~/Downloads and ~/Pictures are real. Asserting the two that exist is the
+            # only honest form; asserting the other two would fail on a correct guest.
+            - check: the XDG Downloads directory exists
+              id: omarchy-sys-xdg-downloads
+              context:
+                  - runtime
+              file:
+                  file: /home/user/Downloads
+                  filetype: directory
+
+            - check: the XDG Pictures directory exists
+              id: omarchy-sys-xdg-pictures
+              context:
+                  - runtime
+              file:
+                  file: /home/user/Pictures
+                  filetype: directory
+
+            # ══ upstream test/acceptance.d/cups-test.sh ═════════════════════════════════
+            # A hardening suite, not a feature suite: it asserts that the parts of CUPS
+            # which widen the attack surface are ABSENT, and that the parts which remain
+            # are locked down.
+
+            - check: the printing stack is installed
+              id: omarchy-cups-installed
+              context:
+                  - runtime
+              package:
+                  package: cups
+                  installed: true
+
+            # ── NOT asserted on this ISO: Omarchy's CUPS hardening ─────────────────
+            # Upstream's cups-test.sh asserts that cups-pdf, cups-browsed and
+            # unauthenticated `lpinfo -v` are all ABSENT. None of that holds here, and the
+            # guest is right — the test suite is newer than the artifact under test.
+            #
+            # This bed pins omarchy-4.0.1.iso, and 4.0.1's own
+            # /usr/share/omarchy/install/omarchy-base.packages lists:
+            #
+            #     cups  cups-browsed  cups-filters  cups-pdf
+            #
+            # with no cups-pk-helper. Its post-install does not REMOVE cups-browsed, it
+            # CONFIGURES it (install/post-install/pacman.sh copies
+            # etc-overrides/cups-cups-browsed.conf into /etc/cups). The hardening landed in
+            # omarchy AFTER 4.0.1, which is why `test/acceptance.d/cups-test.sh` at quattro
+            # HEAD expects the opposite of what 4.0.1 ships.
+            #
+            # Porting those five assertions unchanged made the bed fail against a correct
+            # guest. They belong here the moment `source.url` moves to a release carrying
+            # the hardening — and at that point they become a genuine regression gate for it.
+            #
+            # What IS asserted below is what 4.0.1 itself guarantees.
+            - check: the CUPS filter stack 4.0.1 ships is installed
+              id: omarchy-cups-filters
+              context:
+                  - runtime
+              package:
+                  package: cups-filters
+                  installed: true
+
+            - check: CUPS is enabled, running, and answering
+              id: omarchy-cups-running
+              context:
+                  - runtime
+              service:
+                  service: cups.service
+                  enabled: true
+                  running: true
+
+            - check: the CUPS authorization policy file is root-owned and group-readable only
+              id: omarchy-cups-policy-protected
+              context:
+                  - runtime
+              # Upstream asserts `root:cups 640` via stat. Three typed attributes on one
+              # step say the same thing and name which one is wrong when it breaks.
+              file:
+                  file: /etc/cups/cups-files.conf
+                  owner: root
+                  group_of: cups
+                  mode: "0640"
+
 # ── charly-omarchy — the ready-to-run KEEPER ─────────────────────────────────────
 # A DEPLOY of omarchy-vm, not a third template. A deploy's `from:` carries
 # deploy-scope fields only (add_candy, install_opts, disposable, env, plan); the VM
