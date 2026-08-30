@@ -367,3 +367,128 @@ check-omarchy-iso-vm:
                     test "$(systemctl is-enabled sshd)" = enabled
                     test "$(systemctl is-active sshd)" = active
                     echo SSHD-OK
+
+# ── charly-omarchy — the ready-to-run KEEPER ─────────────────────────────────────
+# A DEPLOY of omarchy-vm, not a third template. A deploy's `from:` carries
+# deploy-scope fields only (add_candy, install_opts, disposable, env, plan); the VM
+# SPEC — source, disk/ram/cpu, firmware, ssh, libvirt — comes wholly from the named
+# kind: vm entity. So the ISO, the seed and the credentials are the ones omarchy-vm
+# already ships, stated once.
+#
+# NOT disposable: this one is meant to be kept. Its disposable twin below is what
+# proves it, so that `charly update` can rebuild the bed from scratch without ever
+# touching an operator's working guest.
+charly-omarchy:
+    vm:
+        from: omarchy-vm
+        lifecycle: dev
+        description: >-
+            Ready-to-run Omarchy with the charly toolchain on top: the faithful upstream
+            ISO install (limine + a UKI, btrfs @/@home/@log/@pkg, snapper, sddm + uwsm,
+            Hyprland and the Quickshell omarchy shell — the real thing, not a charly
+            reconstruction), plus an on-PATH charly. Logs in as user/user, unencrypted,
+            so treat anything reachable from it as public.
+        add_candy:
+            # charly installs as a NATIVE pac package from the charly-arch repo. omarchy
+            # inherits arch's packaging (distro: [omarchy, arch]), so the layer's `arch:`
+            # section applies unchanged and nothing omarchy-specific is needed here.
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+        install_opts:
+            # The layer adds the [charly] pacman repo and imports its signing key, which
+            # is a repo change by definition.
+            allow_repo_changes: true
+            # Installing a package and enabling its units needs root. The guest's
+            # passwordless sudo is established at prepare-venue for source.kind: iso —
+            # a stock Omarchy install grants the account PASSWORD-required sudo, which no
+            # archinstall answer or Omarchy orchestrator hook can change.
+            allow_root_tasks: true
+            with_service: true
+            # The layer carries rpm:/deb:-only sections for other families; skip them
+            # rather than failing on a section this distro cannot use.
+            skip_incompatible: true
+
+# ── the disposable twin ──────────────────────────────────────────────────────────
+# It derives from the TEMPLATE, not from charly-omarchy: a bed's `from:` names a
+# kind: vm entity, and charly-omarchy is itself a deploy. Same add_candy and same
+# install_opts, so what it proves is what the keeper does.
+check-charly-omarchy-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        description: >-
+            Sole proof that charly's own toolchain installs onto a guest Omarchy
+            installed from its own ISO. `disposable: true` authorizes the destroy +
+            rebuild, so the claim is about a guest built from nothing rather than one
+            somebody prepared by hand.
+            .
+            It is a different assertion from check-omarchy-iso-vm, which proves the
+            unattended INSTALL. This proves the DEPLOY on top of it: that charly can
+            add a package repository, import its key, install a native package and
+            enable its units in a guest whose pacman is pinned to Omarchy's own frozen
+            mirror snapshot — none of which is possible without the passwordless sudo
+            established at prepare-venue for source.kind: iso.
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - check: charly is on PATH in the guest and runs
+              id: charly-omarchy-cli-present
+              context:
+                - runtime
+              stdout:
+                - contains: OpenCharly
+              command:
+                # `--version` on this binary prints the usage banner, which names the
+                # product — asserting that rather than a version string, because the
+                # banner is what the command actually emits and a check must assert what
+                # is true, not what would read better.
+                command: charly --version 2>&1 | head -5
+
+            - check: charly was installed as a NATIVE pac package, not copied in
+              id: charly-omarchy-native-package
+              context:
+                - runtime
+              stdout:
+                - contains: NATIVE-OK
+              command:
+                # The distinction matters: the deploy path also stages a host charly into
+                # /tmp for its own use (EnsureCharlyInGuest), and a check that only looked
+                # for a binary on PATH would pass on that alone. `pacman -Qo` proves the
+                # on-PATH one came from the package the layer installed.
+                command: |
+                    set -eu
+                    pacman -Qo "$(command -v charly)" >/dev/null
+                    pacman -Q charly >/dev/null
+                    echo NATIVE-OK
+
+            - check: the charly pacman repo was added and its key trusted
+              id: charly-omarchy-repo-added
+              context:
+                - runtime
+              stdout:
+                - contains: REPO-OK
+              command:
+                # This is the assertion that needs allow_repo_changes AND root: a guest
+                # whose pacman.conf is pinned to Omarchy's frozen mirror had a third-party
+                # repo added to it.
+                command: |
+                    set -eu
+                    pacman-conf --repo charly >/dev/null
+                    echo REPO-OK
+
+            - check: Omarchy's own frozen mirror survived the repo change
+              id: charly-omarchy-mirror-intact
+              context:
+                - runtime
+              stdout:
+                - contains: omarchy.org
+              command:
+                # The regression this guards: adding a repo by rewriting pacman.conf
+                # wholesale would silently drop the Server lines pinning core/extra to
+                # Omarchy's snapshot, and the guest would start tracking upstream Arch
+                # instead — a divergence pacman reports success for either way.
+                command: pacman-conf --repo core Server
