@@ -191,182 +191,314 @@ check-omarchy-iso-vm:
             registered as a boot entry, AND that the machine booted from it, which `test
             -d /boot/EFI/limine` cannot.
         plan:
+            # ── the guest is the installed system ────────────────────────────────
             - check: the guest is the INSTALLED system, not the live ISO
               id: omarchy-iso-vm-installed
               context:
-                - runtime
-              stdout:
-                - contains: 'ID=omarchy'
-              command:
-                # omarchy-settings REPLACES /etc/os-release, so ID=omarchy is only true of
-                # an installed guest — archiso's live environment reports ID=arch. The
-                # cheapest fact separating the two, and the one that fails loudly if this
-                # bed is ever pointed at a guest that never installed.
-                command: grep '^ID=' /etc/os-release
+                  - runtime
+              # omarchy-settings REPLACES /etc/os-release, so ID=omarchy is only true of
+              # an installed guest — archiso's live environment reports ID=arch. The
+              # cheapest fact separating the two, and the one that fails loudly if this
+              # bed is ever pointed at a guest that never installed.
+              file:
+                  file: /etc/os-release
+                  contains:
+                      - 'ID=omarchy'
 
-            - check: root is a btrfs @ subvolume, not the live ISO's overlay
-              id: omarchy-iso-vm-root-subvol
+            # ── the disk layout the installer answers asked for ──────────────────
+            # One `mount:` step per subvolume, not one shell loop over four. A step
+            # carries at most one verb, and a per-mountpoint step NAMES the subvolume
+            # that is wrong instead of failing a whole script at its first line.
+            #
+            # The matcher is an ANCHORED REGEX, not `contains`. `mount:` matches against
+            # the whole comma-joined option string (plugin-mount/.../plugin.go:71-77), so
+            # `contains: subvol=/@` would also match `subvol=/@home` — every one of these
+            # four would pass on any of the others. `subvol=/@($|,)` cannot.
+            #
+            # findmnt (which `mount:` drives) also proves strictly MORE than
+            # `btrfs subvolume list`: that needs CAP_SYS_ADMIN, which the unprivileged
+            # `user` account this bed runs as does not have, and it cannot say where a
+            # subvolume is mounted — only that it exists.
+            - check: root is the @ subvolume of a btrfs filesystem
+              id: omarchy-iso-vm-subvol-root
               context:
-                - runtime
-              stdout:
-                - contains: 'subvol=/@'
-              command:
-                command: findmnt -no FSTYPE,OPTIONS /
+                  - runtime
+              mount:
+                  mount: /
+                  filesystem: btrfs
+                  opt:
+                      - matches: 'subvol=/@($|,)'
 
-            - check: all four subvolumes are mounted where the answers placed them
-              id: omarchy-iso-vm-subvolumes
+            - check: /home is the @home subvolume the answers placed there
+              id: omarchy-iso-vm-subvol-home
               context:
-                - runtime
-              stdout:
-                - contains: SUBVOLUMES-OK
-              command:
-                # `findmnt <mountpoint>` rather than `btrfs subvolume list /`: the latter
-                # needs CAP_SYS_ADMIN (it fails as `user` with "can't perform the search:
-                # Operation not permitted"), and it proves strictly LESS — a subvolume can
-                # exist while being mounted nowhere, or mounted somewhere else. Asserting
-                # the mount asserts the layout the installer answers actually asked for.
-                command: |
-                    set -eu
-                    check() {
-                      findmnt -no OPTIONS "$1" 2>/dev/null | tr ',' '\n' | grep -qx "subvol=/$2" || {
-                        echo "$1 is not the $2 subvolume" >&2; exit 1; }
-                    }
-                    check /                      @
-                    check /home                  @home
-                    check /var/log               @log
-                    check /var/cache/pacman/pkg  @pkg
-                    echo SUBVOLUMES-OK
+                  - runtime
+              mount:
+                  mount: /home
+                  filesystem: btrfs
+                  opt:
+                      - matches: 'subvol=/@home($|,)'
+
+            - check: /var/log is the @log subvolume the answers placed there
+              id: omarchy-iso-vm-subvol-log
+              context:
+                  - runtime
+              mount:
+                  mount: /var/log
+                  filesystem: btrfs
+                  opt:
+                      - matches: 'subvol=/@log($|,)'
+
+            - check: /var/cache/pacman/pkg is the @pkg subvolume the answers placed there
+              id: omarchy-iso-vm-subvol-pkg
+              context:
+                  - runtime
+              mount:
+                  mount: /var/cache/pacman/pkg
+                  filesystem: btrfs
+                  opt:
+                      - matches: 'subvol=/@pkg($|,)'
 
             - check: the ESP is vfat at /boot, not /boot/efi
               id: omarchy-iso-vm-esp
               context:
-                - runtime
-              stdout:
-                - contains: vfat
-              command:
-                command: findmnt -no FSTYPE /boot
+                  - runtime
+              mount:
+                  mount: /boot
+                  filesystem: vfat
 
-            - check: limine is on the ESP, registered, and is what the machine booted
-              id: omarchy-iso-vm-limine
+            # ── the bootloader ───────────────────────────────────────────────────
+            # Two independent facts, one verb each, replacing a shell correlation of
+            # `efibootmgr`'s BootCurrent against its Limine entry. Together they are at
+            # least as strong and carry no shell logic:
+            #   1. limine's EFI binary is on the ESP AND registered as a boot entry;
+            #   2. the RUNNING kernel was handed the command line that only limine's
+            #      config sets — which a guest booted any other way could not have.
+            # (2) is the assertion check-omarchy-pacstrap-vm's own RCA settled on as
+            # stronger than a named-NVRAM-entry test, because the bootstrap path boots
+            # through the firmware's auto-created removable-media entry and registers no
+            # named entry at all.
+            - check: limine's EFI binary is on the ESP and registered as a boot entry
+              id: omarchy-iso-vm-limine-registered
               context:
-                - runtime
+                  - runtime
+              # efibootmgr reads efivars and needs no privilege. `test -f
+              # /boot/limine.conf` cannot be used: the installed ESP is mode 0700
+              # root-only, so as `user` that is a permission denial and NOT evidence
+              # about limine.
               stdout:
-                - contains: LIMINE-BOOTED
+                  - matches: 'Boot[0-9A-Fa-f]{4}\*? Limine.*limine_x64\.efi'
               command:
-                # `test -f /boot/limine.conf` cannot be used: the installed ESP is mode
-                # 0700 root-only, so as `user` that is a permission denial and NOT
-                # evidence about limine. efibootmgr reads efivars, needs no privilege, and
-                # proves three things at once: limine_x64.efi is ON the ESP, a boot entry
-                # names it, and BootCurrent says THIS boot came from it. A directory test
-                # proves none of the three.
-                command: |
-                    set -eu
-                    cur=$(efibootmgr | sed -n 's/^BootCurrent: //p')
-                    efibootmgr | grep -q "^Boot${cur}\** Limine.*limine_x64\.efi" || {
-                      echo "the running system did not boot from limine (BootCurrent=${cur})" >&2
-                      efibootmgr >&2; exit 1; }
-                    echo LIMINE-BOOTED
+                  command: efibootmgr
+
+            - check: the kernel was booted with the command line limine's config specifies
+              id: omarchy-iso-vm-limine-cmdline
+              context:
+                  - runtime
+              file:
+                  file: /proc/cmdline
+                  contains:
+                      - 'rootflags=subvol=@'
+                      - 'rootfstype=btrfs'
 
             - check: limine's config carries the answers' ESP path and root device
               id: omarchy-iso-vm-limine-config
               context:
-                - runtime
-              stdout:
-                - contains: 'ESP_PATH="/boot"'
-                - contains: 'rootflags=subvol=@'
-              command:
-                # /etc/default/limine is world-readable and is where the installer records
-                # the geometry it chose. Asserting BOTH the ESP path and the root cmdline
-                # ties the bootloader's own view back to the partition layout above.
-                command: cat /etc/default/limine
+                  - runtime
+              # /etc/default/limine is world-readable and is where the installer records
+              # the geometry it chose. Asserting BOTH the ESP path and the root cmdline
+              # ties the bootloader's own view back to the partition layout above.
+              file:
+                  file: /etc/default/limine
+                  contains:
+                      - 'ESP_PATH="/boot"'
+                      - 'rootflags=subvol=@'
 
-            - check: snapper is configured for root and limine-snapper-sync is enabled
-              id: omarchy-iso-vm-snapper
+            # ── snapshots ────────────────────────────────────────────────────────
+            - check: snapper is configured for root
+              id: omarchy-iso-vm-snapper-config
               context:
-                - runtime
-              stdout:
-                - contains: SNAPPER-OK
-              command:
-                command: |
-                    set -eu
-                    test -f /etc/snapper/configs/root
-                    systemctl is-enabled limine-snapper-sync >/dev/null
-                    echo SNAPPER-OK
+                  - runtime
+              file:
+                  file: /etc/snapper/configs/root
+                  exists: true
 
-            - check: the account from user_credentials.json exists and is in wheel
+            - check: limine-snapper-sync is enabled, so snapshots reach the boot menu
+              id: omarchy-iso-vm-snapper-sync
+              context:
+                  - runtime
+              service:
+                  service: limine-snapper-sync
+                  enabled: true
+
+            # ── what the seed's answers created ──────────────────────────────────
+            - check: the account from user_credentials.json exists with the installer's home
               id: omarchy-iso-vm-account
               context:
-                - runtime
+                  - runtime
+              user:
+                  user: user
+                  home: /home/user
+
+            - check: the account from user_credentials.json is in wheel, so sudo works
+              id: omarchy-iso-vm-account-wheel
+              context:
+                  - runtime
+              # AWAITING G6: neither `user:` (user/uid/gid/home/shell/linger) nor
+              # `unix_group:` (unix_group/gid) can assert group MEMBERSHIP, so `"sudo":
+              # true` in user_credentials.json has no typed form yet. Converts to
+              # `user: {groups: [wheel]}` the moment plugin-user gains the field.
               stdout:
-                - contains: ACCOUNT-OK
+                  - matches: '(^|\s)wheel(\s|$)'
               command:
-                command: |
-                    set -eu
-                    getent passwd user >/dev/null
-                    id -nG user | tr ' ' '\n' | grep -qx wheel
-                    echo ACCOUNT-OK
+                  command: id -nG user
 
             - check: the hostname from user_configuration.json was applied
               id: omarchy-iso-vm-hostname
               context:
-                - runtime
-              stdout:
-                - contains: omarchy
-              command:
-                command: hostnamectl --static
+                  - runtime
+              file:
+                  file: /etc/hostname
+                  contains:
+                      - omarchy
 
             - check: the timezone from user_configuration.json was applied
               id: omarchy-iso-vm-timezone
               context:
-                - runtime
+                  - runtime
+              # `file:` has no symlink-TARGET matcher — filetype: symlink would prove
+              # /etc/localtime is a link without proving where it points, which is the
+              # entire assertion. Running readlink and matching its output is what the
+              # `command:` verb is for.
               stdout:
-                - contains: UTC
+                  - contains: /usr/share/zoneinfo/UTC
               command:
-                command: readlink -f /etc/localtime
+                  command: readlink -f /etc/localtime
 
             - check: the git identity from the seed's two .txt files was applied
               id: omarchy-iso-vm-git-identity
               context:
-                - runtime
-              stdout:
-                - contains: Charly
-                - contains: charly@opencharly.invalid
-              command:
-                # user_full_name.txt and user_email_address.txt are OPTIONAL seed files.
-                # Asserting them proves charly's renderer emitted the optional half of the
-                # answer set and the installer consumed it — not just the required half.
-                command: git config --global --get-regexp '^user\.'
+                  - runtime
+              # user_full_name.txt and user_email_address.txt are OPTIONAL seed files.
+              # Asserting them proves charly's renderer emitted the optional half of the
+              # answer set and the installer consumed it — not just the required half.
+              # Reading ~/.gitconfig directly is what `git config --global` would print.
+              # The absolute path, not ${HOME}: runtime variables come from OCI image
+              # metadata, and a source.kind: iso VM has no charly-built image to carry
+              # them — ${HOME} would expand to nothing and this would probe /.gitconfig.
+              # /home/user is deterministic here: it is the account the seed created and
+              # the one omarchy-iso-vm-account asserts directly above.
+              file:
+                  file: /home/user/.gitconfig
+                  contains:
+                      - Charly
+                      - charly@opencharly.invalid
 
-            - check: the omarchy runtime and the desktop stack the ISO ships are installed
-              id: omarchy-iso-vm-runtime
+            # ── the runtime the ISO installs ─────────────────────────────────────
+            # One `package:` per package rather than a single `pacman -Q` over ten: the
+            # failure then names the missing package instead of reporting that some
+            # unnamed member of a list is absent.
+            - check: the omarchy metapackage is installed
+              id: omarchy-iso-vm-pkg-omarchy
               context:
-                - runtime
-              stdout:
-                - contains: RUNTIME-OK
-              command:
-                command: |
-                    set -eu
-                    pacman -Q omarchy omarchy-settings hyprland quickshell sddm uwsm \
-                              limine limine-mkinitcpio-hook limine-snapper-sync snapper >/dev/null 2>&1
-                    test -d /usr/share/omarchy/shell
-                    echo RUNTIME-OK
+                  - runtime
+              package:
+                  package: omarchy
+                  installed: true
 
+            - check: omarchy-settings is installed — it owns /etc/skel and os-release
+              id: omarchy-iso-vm-pkg-omarchy-settings
+              context:
+                  - runtime
+              package:
+                  package: omarchy-settings
+                  installed: true
+
+            - check: hyprland is installed
+              id: omarchy-iso-vm-pkg-hyprland
+              context:
+                  - runtime
+              package:
+                  package: hyprland
+                  installed: true
+
+            - check: quickshell is installed — the bar, launcher, OSD and lockscreen
+              id: omarchy-iso-vm-pkg-quickshell
+              context:
+                  - runtime
+              package:
+                  package: quickshell
+                  installed: true
+
+            - check: sddm is installed
+              id: omarchy-iso-vm-pkg-sddm
+              context:
+                  - runtime
+              package:
+                  package: sddm
+                  installed: true
+
+            - check: uwsm is installed — the session manager Omarchy launches Hyprland under
+              id: omarchy-iso-vm-pkg-uwsm
+              context:
+                  - runtime
+              package:
+                  package: uwsm
+                  installed: true
+
+            - check: limine is installed
+              id: omarchy-iso-vm-pkg-limine
+              context:
+                  - runtime
+              package:
+                  package: limine
+                  installed: true
+
+            - check: limine-mkinitcpio-hook is installed, so kernel updates regenerate entries
+              id: omarchy-iso-vm-pkg-limine-mkinitcpio-hook
+              context:
+                  - runtime
+              package:
+                  package: limine-mkinitcpio-hook
+                  installed: true
+
+            - check: limine-snapper-sync is installed
+              id: omarchy-iso-vm-pkg-limine-snapper-sync
+              context:
+                  - runtime
+              package:
+                  package: limine-snapper-sync
+                  installed: true
+
+            - check: snapper is installed
+              id: omarchy-iso-vm-pkg-snapper
+              context:
+                  - runtime
+              package:
+                  package: snapper
+                  installed: true
+
+            - check: the Quickshell shell tree the omarchy package ships is present
+              id: omarchy-iso-vm-shell-tree
+              context:
+                  - runtime
+              file:
+                  file: /usr/share/omarchy/shell
+                  filetype: directory
+
+            # ── the seed turned sshd on ──────────────────────────────────────────
             - check: sshd is enabled AND running — which only authorized_keys turns on
               id: omarchy-iso-vm-sshd
               context:
-                - runtime
-              stdout:
-                - contains: SSHD-OK
-              command:
-                # A stock Omarchy install ships openssh with the unit disabled and the
-                # firewall port closed. That this check can run AT ALL — it arrives over
-                # ssh, on the key charly generated — is the proof; asserting the unit
-                # state makes the proof explicit rather than incidental.
-                command: |
-                    set -eu
-                    test "$(systemctl is-enabled sshd)" = enabled
-                    test "$(systemctl is-active sshd)" = active
-                    echo SSHD-OK
+                  - runtime
+              # A stock Omarchy install ships openssh with the unit disabled and the
+              # firewall port closed. That this check can run AT ALL — it arrives over
+              # ssh, on the key charly generated — is the proof; asserting the unit
+              # state makes the proof explicit rather than incidental.
+              service:
+                  service: sshd
+                  enabled: true
+                  running: true
 
 # ── charly-omarchy — the ready-to-run KEEPER ─────────────────────────────────────
 # A DEPLOY of omarchy-vm, not a third template. A deploy's `from:` carries
@@ -448,37 +580,41 @@ check-charly-omarchy-vm:
                 # is true, not what would read better.
                 command: charly --version 2>&1 | head -5
 
-            - check: charly was installed as a NATIVE pac package, not copied in
+            - check: the charly package is installed
+              id: charly-omarchy-package-installed
+              context:
+                - runtime
+              package:
+                  package: charly
+                  installed: true
+
+            - check: the charly on PATH is the PACKAGE's, not the staged host binary
               id: charly-omarchy-native-package
               context:
                 - runtime
+              # This one stays a `command:` step on purpose. The assertion is a
+              # CORRELATION — that the binary PATH resolves to is the one pacman owns —
+              # and `package:` alone cannot make it: the deploy path also stages a host
+              # charly into /tmp for its own use (EnsureCharlyInGuest), so a guest can
+              # have the package installed AND still resolve `charly` to the staged copy.
+              # `pacman -Qo "$(command -v charly)"` is exactly that correlation.
               stdout:
-                - contains: NATIVE-OK
+                - contains: /usr/bin/charly
               command:
-                # The distinction matters: the deploy path also stages a host charly into
-                # /tmp for its own use (EnsureCharlyInGuest), and a check that only looked
-                # for a binary on PATH would pass on that alone. `pacman -Qo` proves the
-                # on-PATH one came from the package the layer installed.
-                command: |
-                    set -eu
-                    pacman -Qo "$(command -v charly)" >/dev/null
-                    pacman -Q charly >/dev/null
-                    echo NATIVE-OK
+                command: pacman -Qo "$(command -v charly)"
 
             - check: the charly pacman repo was added and its key trusted
               id: charly-omarchy-repo-added
               context:
                 - runtime
+              # This is the assertion that needs allow_repo_changes AND root: a guest
+              # whose pacman.conf is pinned to Omarchy's frozen mirror had a third-party
+              # repo added to it. Asserting the Server line rather than exit-0 proves the
+              # repo is not merely NAMED but resolvable.
               stdout:
-                - contains: REPO-OK
+                - matches: '\S'
               command:
-                # This is the assertion that needs allow_repo_changes AND root: a guest
-                # whose pacman.conf is pinned to Omarchy's frozen mirror had a third-party
-                # repo added to it.
-                command: |
-                    set -eu
-                    pacman-conf --repo charly >/dev/null
-                    echo REPO-OK
+                command: pacman-conf --repo charly Server
 
             - check: Omarchy's own frozen mirror survived the repo change
               id: charly-omarchy-mirror-intact
@@ -597,65 +733,69 @@ check-omarchy-pacstrap-vm:
               id: omarchy-pacstrap-os-release
               context:
                 - runtime
-              stdout:
-                - contains: 'ID=omarchy'
-              command:
-                # omarchy-settings replaces /etc/os-release, and it arrives only from
-                # Omarchy's own repositories. A builder that had silently fetched from
-                # upstream Arch would produce ID=arch here — which is precisely the
-                # divergence omarchy-pacstrap-builder's `base: omarchy` exists to prevent,
-                # and this is where it becomes observable in the finished guest.
-                command: grep '^ID=' /etc/os-release
+              # omarchy-settings replaces /etc/os-release, and it arrives only from
+              # Omarchy's own repositories. A builder that had silently fetched from
+              # upstream Arch would produce ID=arch here — which is precisely the
+              # divergence omarchy-pacstrap-builder's `base: omarchy` exists to prevent,
+              # and this is where it becomes observable in the finished guest.
+              file:
+                  file: /etc/os-release
+                  contains:
+                      - 'ID=omarchy'
 
             - check: root is the @ subvolume of a btrfs filesystem
               id: omarchy-pacstrap-root-subvol
               context:
                 - runtime
-              stdout:
-                - contains: 'subvol=/@'
-              command:
-                # The distro's disk_layout drove this, not the installer: charly's own
-                # EmitDiskBuildScript created the subvolumes and mounted @ as root.
-                command: findmnt -no FSTYPE,OPTIONS /
+              # The distro's disk_layout drove this, not the installer: charly's own
+              # EmitDiskBuildScript created the subvolumes and mounted @ as root.
+              #
+              # An anchored regex, not `contains`: `mount:` matches the whole comma-joined
+              # option string, so `subvol=/@` would also match `subvol=/@home`.
+              mount:
+                  mount: /
+                  filesystem: btrfs
+                  opt:
+                      - matches: 'subvol=/@($|,)'
 
             - check: the ESP is vfat at /boot, the layout limine assumes
               id: omarchy-pacstrap-esp
               context:
                 - runtime
-              stdout:
-                - contains: vfat
-              command: {command: findmnt -no FSTYPE /boot}
+              mount:
+                  mount: /boot
+                  filesystem: vfat
 
             - check: the kernel was booted with the command line limine's config specifies
               id: omarchy-pacstrap-limine-cmdline
               context:
                 - runtime
-              stdout:
-                - contains: 'rootflags=subvol=@'
-                - contains: 'rootfstype=btrfs'
-              command:
-                # NOT efibootmgr, and the difference is the point.
-                #
-                # check-omarchy-iso-vm asserts a NAMED NVRAM entry (`Boot0005* Limine …
-                # limine_x64.efi`) because Omarchy's installer registers one. The bootstrap
-                # path does not: charly's install_template runs `efibootmgr --create` inside
-                # the builder container against a loop device, where the write does not reach
-                # the guest's own OVMF variable store. The guest boots limine anyway, through
-                # the firmware's auto-created removable-media entry:
-                #
-                #   BootCurrent: 0002
-                #   Boot0002* UEFI Misc Device  PciRoot(…){auto_created_boot_option}
-                #
-                # which loads /boot/EFI/BOOT/BOOTX64.EFI — limine's binary, put there by the
-                # same template. Asserting a named entry here would demand a mechanism this
-                # path legitimately does not use, and the bed's first run failed on exactly
-                # that. This is a corrected check, not a weakened one.
-                #
-                # /proc/cmdline is the stronger assertion available: these flags exist ONLY in
-                # the limine.conf charly's bootloader template wrote, so the running kernel
-                # having them proves that config drove this boot. A guest that booted some
-                # other way could not have them.
-                command: cat /proc/cmdline
+              # NOT efibootmgr, and the difference is the point.
+              #
+              # check-omarchy-iso-vm asserts a NAMED NVRAM entry (`Boot0005* Limine …
+              # limine_x64.efi`) because Omarchy's installer registers one. The bootstrap
+              # path does not: charly's install_template runs `efibootmgr --create` inside
+              # the builder container against a loop device, where the write does not reach
+              # the guest's own OVMF variable store. The guest boots limine anyway, through
+              # the firmware's auto-created removable-media entry:
+              #
+              #   BootCurrent: 0002
+              #   Boot0002* UEFI Misc Device  PciRoot(…){auto_created_boot_option}
+              #
+              # which loads /boot/EFI/BOOT/BOOTX64.EFI — limine's binary, put there by the
+              # same template. Asserting a named entry here would demand a mechanism this
+              # path legitimately does not use, and the bed's first run failed on exactly
+              # that. This is a corrected check, not a weakened one.
+              #
+              # /proc/cmdline is the stronger assertion available: these flags exist ONLY in
+              # the limine.conf charly's bootloader template wrote, so the running kernel
+              # having them proves that config drove this boot. A guest that booted some
+              # other way could not have them.
+              file:
+                  file: /proc/cmdline
+                  contains:
+                      - 'rootflags=subvol=@'
+                      - 'rootfstype=btrfs'
 
             - check: limine's loader is on the ESP where the firmware finds it
               id: omarchy-pacstrap-limine-on-esp
