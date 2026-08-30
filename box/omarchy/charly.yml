@@ -45,13 +45,29 @@ omarchy:
             # [omarchy, arch] tag chain actually resolved. If the chain broke, the layer's
             # own checks would still pass on an Arch image with no Omarchy sources, so
             # this is the one claim that cannot be delegated (R3).
-            - check: the omarchy tag chain resolved — Omarchy's sources are in effect on an Arch base
-              id: omarchy-box-tag-chain
+            - check: the image identifies as Omarchy with an arch ID_LIKE, and Omarchy's sources are in effect
+              id: omarchy-box-identity
               context:
                 - build
+              # omarchy-settings REPLACES /etc/os-release, so the built image reports
+              # ID=omarchy / ID_LIKE=arch — not ID=arch, which an earlier version of this
+              # check wrongly asserted and which the bed caught.
+              #
+              # Both halves matter and neither is redundant:
+              #   - ID=omarchy is why `omarchy` is its own #DistroID rather than an alias
+              #     of arch. charly's host detection reads this field; an image that said
+              #     ID=arch would be indistinguishable from plain Arch.
+              #   - ID_LIKE=arch is what makes hostenv.PopulateTags emit the arch fallback
+              #     automatically, which is the same chain `distro: [omarchy, arch]`
+              #     declares at build time. If it regressed, every `distro: arch:` candy
+              #     section would stop applying and packages would silently not install.
+              #
+              # The repo and package assertions confirm the sources behind that identity
+              # are actually configured, so the check cannot pass on a relabelled Arch.
               exit_status: 0
               command: |
                   set -eu
-                  grep -q '^ID=arch' /etc/os-release
+                  grep -q '^ID=omarchy$' /etc/os-release
+                  grep -q '^ID_LIKE=arch$' /etc/os-release
                   pacman-conf --repo omarchy Server | grep -q 'pkgs\.omarchy\.org'
                   pacman -Q omarchy >/dev/null
