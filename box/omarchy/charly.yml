@@ -38,7 +38,7 @@ omarchy:
             - omarchy
             - arch
         candy:
-            - '@github.com/opencharly/layer-omarchy-base/candy/omarchy-base:v2026.242.0437'
+            - '@github.com/opencharly/layer-omarchy-base/candy/omarchy-base:v2026.242.0701'
         plan:
             # The layer asserts everything about the package sources and runtime; this
             # box asserts only what is true of the BOX and of no layer — that the

@@ -38,8 +38,6 @@ import:
 discover:
     - path: box
       recursive: true
-    - path: candy
-      recursive: true
 
 # ── disposable R10 beds ──────────────────────────────────────────────────────────
 # `disposable: true` is the SOLE authorization for the unattended destroy + rebuild
@@ -59,3 +57,19 @@ check-omarchy-pod:
             with plain pacman and no AUR builder, that the four limine alpm hooks a
             container cannot satisfy were never extracted onto the image, and that
             /etc/skel is seeded into the image user's home.
+
+check-omarchy-cstream-pod:
+    pod:
+        image: omarchy-cstream
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Sole proof that the Omarchy DESKTOP runs. Builds the omarchy-cstream box and,
+            on the started deployment, asserts that the Quickshell shell reaches a
+            supervised RUNNING state under a nested Hyprland and that charly's own wl:
+            verb reports hyprland as the live compositor — not a process-list inference.
+            It is the bed that would catch a regression in the one arrangement that works:
+            Hyprland cannot nest under selkies (pixelflux advertises wl_compositor v5 and
+            Hyprland binds v6), so the desktop depends on gst-wayland-display being the
+            parent, and on the box deriving FROM the omarchy base image so every layer
+            resolves against the same package snapshot.
