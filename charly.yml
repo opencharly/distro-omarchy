@@ -73,3 +73,297 @@ check-omarchy-cstream-pod:
             Hyprland binds v6), so the desktop depends on gst-wayland-display being the
             parent, and on the box deriving FROM the omarchy base image so every layer
             resolves against the same package snapshot.
+
+# ── Omarchy as a VM ──────────────────────────────────────────────────────────────────
+#
+# omarchy-vm is the FAITHFUL one: it boots Omarchy's own official installer ISO, fully
+# unattended. What you get is what Omarchy's authors ship — limine + a UKI, btrfs
+# @/@home/@log/@pkg, snapper, sddm + uwsm. Charly supplies only the answers.
+#
+# A composable sibling (omarchy-pacstrap-vm, charly's own machinery reproducing Omarchy
+# from packages) is NOT here yet: it needs an omarchy-pacstrap-builder box, which needs
+# `limine` added to layer-pacstrap-builder first — the bootloader install runs INSIDE the
+# builder container against the mounted target, so the binary must exist there. That is
+# its own repo's PR, and an entity naming a builder box that does not exist would not
+# validate.
+#
+# A `charly-omarchy` keeper deploy would be a DEPLOY of this template, not a second
+# template: a deploy's `from:` carries deploy-scope fields only (add_candy, install_opts,
+# disposable, env, plan) and the VM SPEC comes wholly from the named kind: vm entity, so
+# credentials live here and are never restated.
+
+omarchy-vm:
+    vm:
+        # THE canonical Omarchy VM: the official ISO, run unattended.
+        #
+        # The ISO is 5.8 GiB. It is fetched once into charly's content-addressed cache,
+        # sha256-verified against the .sha256 sidecar the publisher serves (no checksum
+        # value is authored here — pinning a literal would go stale on every point
+        # release while the sidecar cannot), and shared by every VM built from this URL.
+        #
+        # user / user with NO disk encryption, and that combination is deliberate. An
+        # encrypted install is NOT fully unattended — someone types the LUKS passphrase
+        # at first boot — and its passphrase sits in PLAINTEXT in the seed's
+        # disk_encryption block, which would make this file a secret. With encrypt:
+        # false there is no such block and nothing on the seed that is not already
+        # public. Treat anything reachable from a VM built on this template as public.
+        source:
+            kind: iso
+            distro: omarchy
+            url: https://iso.omarchy.org/omarchy-4.0.1.iso
+            checksum: {type: sha256}
+            installer:
+                username: user
+                # PLAINTEXT here, crypt()ed to a $6$ SHA-512 hash by the builder before
+                # it reaches any template — the plaintext never lands on the seed. The
+                # answers volume carries only the hash.
+                password: user
+                full_name: Charly
+                email: charly@opencharly.invalid
+                hostname: omarchy
+                timezone: UTC
+                keyboard: us
+                locale: en_US.UTF-8
+                disk: /dev/vda
+                encrypt: false
+                # ssh_authorized_key is deliberately ABSENT: it defaults to the public
+                # half of ssh.key_source: generate below. That default is what makes the
+                # guest reachable at all — a stock Omarchy install ships openssh with the
+                # service DISABLED and the port CLOSED, and the installer treats the
+                # presence of an authorized_keys file on the seed as the instruction to
+                # enable sshd and open the firewall. Naming a key here would silence that
+                # default without saying so.
+        disk_size: 40G
+        ram: 8G
+        cpu: 4
+        machine: q35
+        # Omarchy requires Secure Boot OFF.
+        firmware: uefi-insecure
+        network: {mode: user}
+        ssh: {user: user, port_auto: true, key_source: generate}
+        backend: libvirt
+        # A DISPLAY IS REQUIRED, not decorative. Omarchy's installer runs in a graphical
+        # session on the ISO's live environment; a domain with no video device boots the
+        # medium, runs cloud-init against the seed, and then sits idle forever with the
+        # disk untouched — measured. The spice head is also what lets `charly check spice
+        # screenshot` watch an unattended install actually progress, which is the only
+        # way to see where one stalls.
+        libvirt:
+            devices:
+                channels: [{type: spicevmc, name: com.redhat.spice.0}]
+                graphics: [{type: spice, listen: [{type: socket}]}]
+                video: [{model: virtio, vram: 65536, heads: 1, accel3d: false}]
+                rng: [{model: virtio, backend: /dev/urandom}]
+                memballoon: {model: virtio}
+            snippets:
+                - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
+
+check-omarchy-iso-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Sole proof that Omarchy installs itself UNATTENDED from its own official ISO.
+            Derives from the omarchy-vm template rather than restating it, so the
+            credentials and the seed under test are exactly the ones the shipped entity
+            carries. `disposable: true` authorizes the destroy + rebuild, which is what
+            makes the claim meaningful: a bed that only ever inspected an
+            already-installed guest would pass on a disk somebody installed by hand.
+            .
+            What it proves that nothing else can: the installer ran with NOBODY AT THE
+            KEYBOARD. Every assertion below is a fact about the INSTALLED system that
+            cannot be true unless charly's rendered answers were found, parsed and acted
+            on — the btrfs subvolume layout and the ESP at /boot come from the partition
+            geometry in the distro's installer: block, the account and its sudo group
+            from user_credentials.json, the hostname and timezone from
+            user_configuration.json, the git identity from the two .txt files, and sshd
+            being enabled AT ALL from authorized_keys (a stock Omarchy install ships
+            openssh with the service disabled and the port closed).
+            .
+            EVERY check runs as the unprivileged `user` the installer created, because
+            that is the only account the seed authorizes and charly's check runner has no
+            other. That constraint is a feature: it forced each assertion onto evidence
+            that is READABLE rather than privileged, and every one of those turned out to
+            be STRONGER than the root-only form it replaced. `findmnt` at each mountpoint
+            proves a subvolume exists AND is mounted where the answers said, which `btrfs
+            subvolume list` cannot; `efibootmgr` proves limine's EFI binary is on the ESP,
+            registered as a boot entry, AND that the machine booted from it, which `test
+            -d /boot/EFI/limine` cannot.
+        plan:
+            - check: the guest is the INSTALLED system, not the live ISO
+              id: omarchy-iso-vm-installed
+              context:
+                - runtime
+              stdout:
+                - contains: 'ID=omarchy'
+              command:
+                # omarchy-settings REPLACES /etc/os-release, so ID=omarchy is only true of
+                # an installed guest — archiso's live environment reports ID=arch. The
+                # cheapest fact separating the two, and the one that fails loudly if this
+                # bed is ever pointed at a guest that never installed.
+                command: grep '^ID=' /etc/os-release
+
+            - check: root is a btrfs @ subvolume, not the live ISO's overlay
+              id: omarchy-iso-vm-root-subvol
+              context:
+                - runtime
+              stdout:
+                - contains: 'subvol=/@'
+              command:
+                command: findmnt -no FSTYPE,OPTIONS /
+
+            - check: all four subvolumes are mounted where the answers placed them
+              id: omarchy-iso-vm-subvolumes
+              context:
+                - runtime
+              stdout:
+                - contains: SUBVOLUMES-OK
+              command:
+                # `findmnt <mountpoint>` rather than `btrfs subvolume list /`: the latter
+                # needs CAP_SYS_ADMIN (it fails as `user` with "can't perform the search:
+                # Operation not permitted"), and it proves strictly LESS — a subvolume can
+                # exist while being mounted nowhere, or mounted somewhere else. Asserting
+                # the mount asserts the layout the installer answers actually asked for.
+                command: |
+                    set -eu
+                    check() {
+                      findmnt -no OPTIONS "$1" 2>/dev/null | tr ',' '\n' | grep -qx "subvol=/$2" || {
+                        echo "$1 is not the $2 subvolume" >&2; exit 1; }
+                    }
+                    check /                      @
+                    check /home                  @home
+                    check /var/log               @log
+                    check /var/cache/pacman/pkg  @pkg
+                    echo SUBVOLUMES-OK
+
+            - check: the ESP is vfat at /boot, not /boot/efi
+              id: omarchy-iso-vm-esp
+              context:
+                - runtime
+              stdout:
+                - contains: vfat
+              command:
+                command: findmnt -no FSTYPE /boot
+
+            - check: limine is on the ESP, registered, and is what the machine booted
+              id: omarchy-iso-vm-limine
+              context:
+                - runtime
+              stdout:
+                - contains: LIMINE-BOOTED
+              command:
+                # `test -f /boot/limine.conf` cannot be used: the installed ESP is mode
+                # 0700 root-only, so as `user` that is a permission denial and NOT
+                # evidence about limine. efibootmgr reads efivars, needs no privilege, and
+                # proves three things at once: limine_x64.efi is ON the ESP, a boot entry
+                # names it, and BootCurrent says THIS boot came from it. A directory test
+                # proves none of the three.
+                command: |
+                    set -eu
+                    cur=$(efibootmgr | sed -n 's/^BootCurrent: //p')
+                    efibootmgr | grep -q "^Boot${cur}\** Limine.*limine_x64\.efi" || {
+                      echo "the running system did not boot from limine (BootCurrent=${cur})" >&2
+                      efibootmgr >&2; exit 1; }
+                    echo LIMINE-BOOTED
+
+            - check: limine's config carries the answers' ESP path and root device
+              id: omarchy-iso-vm-limine-config
+              context:
+                - runtime
+              stdout:
+                - contains: 'ESP_PATH="/boot"'
+                - contains: 'rootflags=subvol=@'
+              command:
+                # /etc/default/limine is world-readable and is where the installer records
+                # the geometry it chose. Asserting BOTH the ESP path and the root cmdline
+                # ties the bootloader's own view back to the partition layout above.
+                command: cat /etc/default/limine
+
+            - check: snapper is configured for root and limine-snapper-sync is enabled
+              id: omarchy-iso-vm-snapper
+              context:
+                - runtime
+              stdout:
+                - contains: SNAPPER-OK
+              command:
+                command: |
+                    set -eu
+                    test -f /etc/snapper/configs/root
+                    systemctl is-enabled limine-snapper-sync >/dev/null
+                    echo SNAPPER-OK
+
+            - check: the account from user_credentials.json exists and is in wheel
+              id: omarchy-iso-vm-account
+              context:
+                - runtime
+              stdout:
+                - contains: ACCOUNT-OK
+              command:
+                command: |
+                    set -eu
+                    getent passwd user >/dev/null
+                    id -nG user | tr ' ' '\n' | grep -qx wheel
+                    echo ACCOUNT-OK
+
+            - check: the hostname from user_configuration.json was applied
+              id: omarchy-iso-vm-hostname
+              context:
+                - runtime
+              stdout:
+                - contains: omarchy
+              command:
+                command: hostnamectl --static
+
+            - check: the timezone from user_configuration.json was applied
+              id: omarchy-iso-vm-timezone
+              context:
+                - runtime
+              stdout:
+                - contains: UTC
+              command:
+                command: readlink -f /etc/localtime
+
+            - check: the git identity from the seed's two .txt files was applied
+              id: omarchy-iso-vm-git-identity
+              context:
+                - runtime
+              stdout:
+                - contains: Charly
+                - contains: charly@opencharly.invalid
+              command:
+                # user_full_name.txt and user_email_address.txt are OPTIONAL seed files.
+                # Asserting them proves charly's renderer emitted the optional half of the
+                # answer set and the installer consumed it — not just the required half.
+                command: git config --global --get-regexp '^user\.'
+
+            - check: the omarchy runtime and the desktop stack the ISO ships are installed
+              id: omarchy-iso-vm-runtime
+              context:
+                - runtime
+              stdout:
+                - contains: RUNTIME-OK
+              command:
+                command: |
+                    set -eu
+                    pacman -Q omarchy omarchy-settings hyprland quickshell sddm uwsm \
+                              limine limine-mkinitcpio-hook limine-snapper-sync snapper >/dev/null 2>&1
+                    test -d /usr/share/omarchy/shell
+                    echo RUNTIME-OK
+
+            - check: sshd is enabled AND running — which only authorized_keys turns on
+              id: omarchy-iso-vm-sshd
+              context:
+                - runtime
+              stdout:
+                - contains: SSHD-OK
+              command:
+                # A stock Omarchy install ships openssh with the unit disabled and the
+                # firewall port closed. That this check can run AT ALL — it arrives over
+                # ssh, on the key charly generated — is the proof; asserting the unit
+                # state makes the proof explicit rather than incidental.
+                command: |
+                    set -eu
+                    test "$(systemctl is-enabled sshd)" = enabled
+                    test "$(systemctl is-active sshd)" = active
+                    echo SSHD-OK
