@@ -1,0 +1,73 @@
+omarchy-pacstrap-builder:
+    candy:
+        version: 2026.242.0000
+        # The privileged builder for the `kind: bootstrap` / `builder: pacstrap` VM path.
+        # It runs pacstrap, partitions the disk, makes the filesystems and installs the
+        # boot chain into the mounted target, under `charly vm build omarchy-pacstrap-vm`.
+        #
+        # base: omarchy — NOT arch.arch, and that is the whole point of this box.
+        #
+        # pacstrap runs INSIDE this image and resolves packages against THIS image's
+        # /etc/pacman.conf. charly appends the distro's `extra_repo` entries to it
+        # (renderPacstrapExtraConf), which adds [omarchy] and [multilib] — but it does
+        # NOT rewrite [core] and [extra]. On a plain-Arch base those two would still
+        # point at upstream Arch, so the target rootfs would come from a MIX: 23 packages
+        # from Omarchy's repo and ~125 from a different, newer Arch snapshot than Omarchy
+        # ships. pacman reports success either way, which is exactly what makes the
+        # divergence dangerous.
+        #
+        # The omarchy base has already repointed core/extra/multilib at Omarchy's frozen
+        # mirror (the omarchy-repo layer), so building on it makes every package pacstrap
+        # fetches come from one snapshot — the one Omarchy actually publishes.
+        description: |
+            The privileged pacstrap builder for Omarchy bootstrap VMs — Omarchy's own
+            package sources plus the disk/bootstrap toolchain.
+            Built on the Omarchy base rather than plain Arch so that pacstrap resolves
+            EVERY package against Omarchy's frozen mirror snapshot. charly appends a
+            distro's extra repositories to the builder's pacman.conf but does not
+            repoint core/extra, so a plain-Arch builder would produce a target rootfs
+            mixing Omarchy's own packages with a newer upstream Arch snapshot — silently,
+            because pacman succeeds either way. Its own observable claim is that the
+            bootstrap toolchain is present AND that core still resolves to Omarchy.
+        base: omarchy
+        build:
+            - pac
+        platform:
+            # x86_64 only: pkgs.omarchy.org publishes no aarch64 tree.
+            - linux/amd64
+        distro:
+            - omarchy
+            - arch
+        candy:
+            # The shared bootstrap toolchain: pacstrap, parted, the mkfs family,
+            # qemu-img, mkinitcpio, efibootmgr. Not omarchy-specific and not duplicated
+            # here — the same layer arch-pacstrap-builder and cachyos-pacstrap-builder use.
+            #
+            # It carries `grub` and NOT `limine`, which is correct and deliberate: the
+            # omarchy bootloader install_template copies BOOTX64.EFI from the BUILDER when
+            # present and falls back to the mounted TARGET's copy otherwise
+            # (`cp /usr/share/limine/... || cp {{.Mnt}}/usr/share/limine/...`), and the
+            # target always has it because `limine` is in omarchy's pacstrap base_package.
+            - '@github.com/opencharly/layer-pacstrap-builder:v2026.239.1633'
+        plan:
+            # The layer asserts its own binaries. This box asserts the one thing no layer
+            # can: that building on the Omarchy base actually kept Omarchy's package
+            # sources in effect, so pacstrap will fetch from the frozen snapshot rather
+            # than upstream Arch. If this regressed, every bootstrap VM built here would
+            # still succeed and would silently be a different distribution.
+            - check: pacstrap resolves against Omarchy's frozen mirror, not upstream Arch
+              id: omarchy-pacstrap-builder-sources
+              context:
+                - build
+              exit_status: 0
+              command: |
+                  set -eu
+                  # core and extra must come from Omarchy's snapshot host, not from
+                  # geo.mirror.pkgbuild.com or any other upstream Arch mirror.
+                  pacman-conf --repo core Server  | grep -q 'omarchy\.org'
+                  pacman-conf --repo extra Server | grep -q 'omarchy\.org'
+                  # and the toolchain pacstrap itself needs must be on PATH here, because
+                  # it runs in THIS image against the mounted target.
+                  command -v pacstrap >/dev/null
+                  command -v parted   >/dev/null
+                  command -v qemu-img >/dev/null
