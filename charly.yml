@@ -38,8 +38,6 @@ import:
 discover:
     - path: box
       recursive: true
-    - path: candy
-      recursive: true
 
 # ── disposable R10 beds ──────────────────────────────────────────────────────────
 # `disposable: true` is the SOLE authorization for the unattended destroy + rebuild
