@@ -784,6 +784,81 @@ check-omarchy-iso-vm:
                   group_of: cups
                   mode: "0640"
 
+            # ── the config upstream's shell.d tests write, asserted as CONSEQUENCE ──
+            # From UPSTREAM-TEST-TRIAGE.md's Class B set. Upstream mocks a binary and
+            # asserts a CALL SEQUENCE; these assert the resulting FILE, which is strictly
+            # stronger — it proves the machine, not the call — and does not need upstream's
+            # source tree in the guest.
+            #
+            # Every path here was probed read-only on a freshly rebuilt guest BEFORE being
+            # asserted, because the candidate list is not uniformly true of a stock install.
+            # Five siblings came back ABSENT and are deliberately NOT asserted: /etc/fido2
+            # and /etc/pam.d/omarchy-lock-fingerprint (enrolment opt-in),
+            # /etc/omarchy.conf and /etc/sudoers.d/omarchy-dev-path (`omarchy dev-link`
+            # opt-in), /etc/modprobe.d/brcmfmac.conf (Broadcom hardware). Asserting any of
+            # them would fail a CORRECT guest.
+
+            - check: the keyboard layout the installer answers asked for reached the console
+              id: omarchy-iso-vm-vconsole-layout
+              context:
+                  - runtime
+              # upstream: hyprland-keyboard-layout-test.sh
+              file:
+                  file: /etc/vconsole.conf
+                  contains:
+                      - 'KEYMAP=us'
+                      - 'XKBLAYOUT=us'
+                      - 'XKBOPTIONS=terminate:ctrl_alt_bksp'
+
+            - check: the initramfs hooks carry Omarchy's boot stack
+              id: omarchy-iso-vm-mkinitcpio-hooks
+              context:
+                  - runtime
+              # upstream: nvidia-kms-hook-test.sh. That test mocks the hook-editing logic;
+              # the observable consequence is the hook LIST this guest actually boots with.
+              # btrfs-overlayfs is what makes a snapshot bootable, so its absence would be
+              # a silent regression of the snapshot claim asserted earlier in this bed.
+              file:
+                  file: /etc/mkinitcpio.conf.d/omarchy_hooks.conf
+                  contains:
+                      - 'plymouth'
+                      - 'encrypt'
+                      - 'btrfs-overlayfs'
+
+            - check: logind's inhibit delay is long enough to lock before suspend
+              id: omarchy-iso-vm-inhibit-delay
+              context:
+                  - runtime
+              # upstream: sleep-lock-test.sh. A delay inhibitor is a TIMER, not a promise:
+              # logind suspends once the window expires whether the session locked or not.
+              # The drop-in's own comment says five seconds is too short when closing the
+              # lid also reconfigures displays, so the VALUE is the assertion, not the file.
+              file:
+                  file: /etc/systemd/logind.conf.d/20-inhibit-delay.conf
+                  contains:
+                      - 'InhibitDelayMaxSec=15'
+
+            - check: the locale profile hook is installed
+              id: omarchy-iso-vm-locale-profile
+              context:
+                  - runtime
+              # upstream: locale-env-test.sh
+              file:
+                  file: /etc/profile.d/locale.sh
+                  exists: true
+
+            - check: the managed browser-policy directory exists
+              id: omarchy-iso-vm-chromium-policy-dir
+              context:
+                  - runtime
+              # upstream: browser-policy-dir-test.sh, default-apps-test.sh. Measured EMPTY
+              # on a stock 4.0.1 guest (0 entries), so this asserts the DIRECTORY only.
+              # Asserting a policy FILE — which is what those tests are really about — would
+              # fail a correct guest, so it is left out until a release ships one.
+              file:
+                  file: /etc/chromium/policies/managed
+                  filetype: directory
+
 # ── charly-omarchy — the ready-to-run KEEPER ─────────────────────────────────────
 # A DEPLOY of omarchy-vm, not a third template. A deploy's `from:` carries
 # deploy-scope fields only (add_candy, install_opts, disposable, env, plan); the VM
