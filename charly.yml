@@ -83,7 +83,7 @@ check-omarchy-cstream-pod:
             # skipped step reads as not-failed in the summary. Every assertion below would
             # then assert nothing while the bed reported green.
             - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1212'
-            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1637'
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1942'
         plan:
             # ── the GUI subset, mirroring check-omarchy-desktop-vm ───────────────────────
             # This bed had NO plan at all. Its description — and the omarchy-cstream box's —
@@ -124,34 +124,51 @@ check-omarchy-cstream-pod:
               stdout:
                   - contains: '"name"'
 
-            # ── NOT asserted here: the shell's IPC ─────────────────────────────────
-            # The obvious next two steps — `quickshell: ping` and `listPlugins`, mirroring
-            # check-omarchy-desktop-vm — are deliberately absent, because in THIS image the
-            # Quickshell shell never starts. They were written, run, and removed only after
-            # the cause was established; they are not omitted for convenience.
-            #
-            # Measured on the running pod (charly check live, diagnostic step):
-            #
-            #     launcher     /bin/sh -c ... until [ -e "${XDG_RUNTIME_DIR}/wayland-0" ]
-            #                  ... timed out after 60s waiting for ... exit 1
-            #     sockets      /tmp/cstream-rt/wayland-1, wayland-2   (NO wayland-0)
-            #     qs list --all             No running instances.
-            #     supervisorctl omarchy-shell  RUNNING, uptime 0:00:29 -> 0:00:49
-            #
-            # layer-omarchy-shell waits for `${XDG_RUNTIME_DIR}/wayland-0` and exports
-            # WAYLAND_DISPLAY=wayland-0. The nested compositor here creates wayland-1 and
-            # wayland-2, so the wait never succeeds: the launcher times out after 60s, exits
-            # 1, supervisord restarts it, and Quickshell is never exec'd at all.
-            #
-            # The existing "supervisorctl status omarchy-shell shows a stable uptime" check
-            # in layer-omarchy-shell PASSES throughout, because what is stably running is the
-            # WAIT WRAPPER, not the shell. That is a green assertion proving nothing, and it
-            # is why this bed could claim a working desktop while having none.
-            #
-            # The two wl: assertions above are unaffected and pass: Hyprland itself is
-            # healthy (it is what creates wayland-1/2). Only the shell's socket-name
-            # assumption is wrong, so the fix belongs in the layer that makes it — not in a
-            # bed step widened until it goes green.
+            - check: the omarchy shell answers a ping
+              id: omarchy-cstream-shell-ping
+              context:
+                  - runtime
+              # `quickshell:` and not a `command:` step: qs ipc reports IPC-level failures on
+              # STDOUT while exiting ZERO, so a command: step would stay green against a
+              # shell that had lost its ping handler. The supervisor check in
+              # layer-omarchy-shell proves the PROCESS is up; this proves it still SERVES —
+              # a distinction that was not academic here. Before
+              # layer-omarchy-shell's socket-number fix the supervised service was a WAIT
+              # WRAPPER spinning on a socket nothing creates, and its uptime check passed
+              # throughout while Quickshell was never exec'd at all.
+              eventually: 120s
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  # The pod runs the compositor and its shell under a DEDICATED runtime dir,
+                  # and an exec into the container inherits a different one. qs finds
+                  # instances through XDG_RUNTIME_DIR and filters them by DISPLAY, so both
+                  # are load-bearing and they fail DIFFERENTLY: with the step's own dir
+                  # `qs list --all` reports "No running instances"; with the wrong display
+                  # it reports "No running instances for <config>". Neither message names
+                  # the missing half, so both are stated rather than discovered.
+                  runtime_dir: /tmp/cstream-rt
+                  wayland_display: wayland-2
+                  target: shell
+                  function: ping
+
+            - check: the shell loaded its plugins under the nested compositor
+              id: omarchy-cstream-shell-plugins
+              context:
+                  - runtime
+              # A shell can answer a ping with every panel plugin failed to load. Asking for
+              # the list is the difference between "the process replies" and "the desktop is
+              # assembled".
+              eventually: 120s
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  runtime_dir: /tmp/cstream-rt
+                  wayland_display: wayland-2
+                  target: shell
+                  function: listPlugins
+              stdout:
+                  - contains: omarchy.
 
 # ── Omarchy as a VM ──────────────────────────────────────────────────────────────────
 #
@@ -1320,7 +1337,7 @@ check-omarchy-desktop-vm:
             # plugin-quickshell serves the `quickshell:` verb the shell-IPC steps below use.
             # Same mechanism as plugin-wl above: nothing in this VM's image closure requires
             # it, so it rides in through add_candy and the host check runner loads it.
-            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1637'
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1942'
             # omarchy-autologin writes the sddm drop-in and restarts sddm. It is a CANDY,
             # not a plan step, because a deploy's run: steps are install-timeline steps:
             # `charly check live` runs verify-only and skips every mutating step, and a
