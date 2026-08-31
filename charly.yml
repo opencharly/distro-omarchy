@@ -73,6 +73,85 @@ check-omarchy-cstream-pod:
             Hyprland binds v6), so the desktop depends on gst-wayland-display being the
             parent, and on the box deriving FROM the omarchy base image so every layer
             resolves against the same package snapshot.
+        add_candy:
+            # The two host-side check verbs this bed's plan drives, exactly as
+            # check-omarchy-desktop-vm rides them in. Nothing in the pod's image closure
+            # requires either — the steps are authored INLINE below — so they arrive
+            # through add_candy and the host check runner loads them.
+            #
+            # WITHOUT these pins the steps do not fail: they SKIP as an unknown verb, and a
+            # skipped step reads as not-failed in the summary. Every assertion below would
+            # then assert nothing while the bed reported green.
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1212'
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1637'
+        plan:
+            # ── the GUI subset, mirroring check-omarchy-desktop-vm ───────────────────────
+            # This bed had NO plan at all. Its description — and the omarchy-cstream box's —
+            # claimed "charly's own wl: verb reports hyprland as the live compositor, not a
+            # process-list inference", and no `wl:` step existed anywhere in the pod's
+            # closure: the only matches were the two sentences making the claim. The
+            # supervised-RUNNING half was real (layer-omarchy-shell asserts service=
+            # omarchy-shell and a supervisorctl uptime); the compositor half was prose.
+            #
+            # These four close that gap. They are a FAST-FEEDBACK MIRROR of the desktop VM
+            # bed, never the sole proof of anything: each has a counterpart there, so a pod
+            # regression and a VM regression are the same finding at different cost. The
+            # pod cannot host the rest of that bed — no sddm, no autologin, no systemd user
+            # units, no OCR-worthy panel set — which is why this is a subset and the VM bed
+            # remains the desktop claim.
+
+            - check: the wl verb reports hyprland as the live compositor
+              id: omarchy-cstream-compositor
+              context:
+                  - runtime
+              # The assertion this bed's description promised and did not make. A
+              # process-list grep would pass on a Hyprland that started and then failed to
+              # bind; `wl: status` answers over the compositor's own protocol socket.
+              eventually: 120s
+              wl: status
+              stdout:
+                  - contains: hyprland
+
+            - check: the nested compositor reports a monitor to draw into
+              id: omarchy-cstream-monitor
+              context:
+                  - runtime
+              # gst-wayland-display is the parent here rather than a physical output, so a
+              # monitor list that comes back EMPTY is the specific failure this arrangement
+              # risks — the desktop would be live with nowhere to render.
+              eventually: 120s
+              wl: hypr-monitors
+              stdout:
+                  - contains: '"name"'
+
+            # ── NOT asserted here: the shell's IPC ─────────────────────────────────
+            # The obvious next two steps — `quickshell: ping` and `listPlugins`, mirroring
+            # check-omarchy-desktop-vm — are deliberately absent, because in THIS image the
+            # Quickshell shell never starts. They were written, run, and removed only after
+            # the cause was established; they are not omitted for convenience.
+            #
+            # Measured on the running pod (charly check live, diagnostic step):
+            #
+            #     launcher     /bin/sh -c ... until [ -e "${XDG_RUNTIME_DIR}/wayland-0" ]
+            #                  ... timed out after 60s waiting for ... exit 1
+            #     sockets      /tmp/cstream-rt/wayland-1, wayland-2   (NO wayland-0)
+            #     qs list --all             No running instances.
+            #     supervisorctl omarchy-shell  RUNNING, uptime 0:00:29 -> 0:00:49
+            #
+            # layer-omarchy-shell waits for `${XDG_RUNTIME_DIR}/wayland-0` and exports
+            # WAYLAND_DISPLAY=wayland-0. The nested compositor here creates wayland-1 and
+            # wayland-2, so the wait never succeeds: the launcher times out after 60s, exits
+            # 1, supervisord restarts it, and Quickshell is never exec'd at all.
+            #
+            # The existing "supervisorctl status omarchy-shell shows a stable uptime" check
+            # in layer-omarchy-shell PASSES throughout, because what is stably running is the
+            # WAIT WRAPPER, not the shell. That is a green assertion proving nothing, and it
+            # is why this bed could claim a working desktop while having none.
+            #
+            # The two wl: assertions above are unaffected and pass: Hyprland itself is
+            # healthy (it is what creates wayland-1/2). Only the shell's socket-name
+            # assumption is wrong, so the fix belongs in the layer that makes it — not in a
+            # bed step widened until it goes green.
 
 # ── Omarchy as a VM ──────────────────────────────────────────────────────────────────
 #
