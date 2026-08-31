@@ -52,7 +52,7 @@ omarchy-cstream:
             # The parent that streams + the compositor that draws, as one name.
             - '@github.com/opencharly/layer-cstream-desktop:v2026.243.1039'
             # Omarchy's own desktop content.
-            - '@github.com/opencharly/layer-omarchy-shell/candy/omarchy-shell:v2026.242.1016'
+            - '@github.com/opencharly/layer-omarchy-shell/candy/omarchy-shell:v2026.243.1941'
             - '@github.com/opencharly/layer-omarchy-hyprland/candy/omarchy-hyprland:v2026.243.1042'
             - '@github.com/opencharly/layer-omarchy-terminal/candy/omarchy-terminal:v2026.242.0616'
             - '@github.com/opencharly/layer-omarchy-themes/candy/omarchy-themes:v2026.242.0837'

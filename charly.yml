@@ -73,6 +73,102 @@ check-omarchy-cstream-pod:
             Hyprland binds v6), so the desktop depends on gst-wayland-display being the
             parent, and on the box deriving FROM the omarchy base image so every layer
             resolves against the same package snapshot.
+        add_candy:
+            # The two host-side check verbs this bed's plan drives, exactly as
+            # check-omarchy-desktop-vm rides them in. Nothing in the pod's image closure
+            # requires either — the steps are authored INLINE below — so they arrive
+            # through add_candy and the host check runner loads them.
+            #
+            # WITHOUT these pins the steps do not fail: they SKIP as an unknown verb, and a
+            # skipped step reads as not-failed in the summary. Every assertion below would
+            # then assert nothing while the bed reported green.
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1212'
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1942'
+        plan:
+            # ── the GUI subset, mirroring check-omarchy-desktop-vm ───────────────────────
+            # This bed had NO plan at all. Its description — and the omarchy-cstream box's —
+            # claimed "charly's own wl: verb reports hyprland as the live compositor, not a
+            # process-list inference", and no `wl:` step existed anywhere in the pod's
+            # closure: the only matches were the two sentences making the claim. The
+            # supervised-RUNNING half was real (layer-omarchy-shell asserts service=
+            # omarchy-shell and a supervisorctl uptime); the compositor half was prose.
+            #
+            # These four close that gap. They are a FAST-FEEDBACK MIRROR of the desktop VM
+            # bed, never the sole proof of anything: each has a counterpart there, so a pod
+            # regression and a VM regression are the same finding at different cost. The
+            # pod cannot host the rest of that bed — no sddm, no autologin, no systemd user
+            # units, no OCR-worthy panel set — which is why this is a subset and the VM bed
+            # remains the desktop claim.
+
+            - check: the wl verb reports hyprland as the live compositor
+              id: omarchy-cstream-compositor
+              context:
+                  - runtime
+              # The assertion this bed's description promised and did not make. A
+              # process-list grep would pass on a Hyprland that started and then failed to
+              # bind; `wl: status` answers over the compositor's own protocol socket.
+              eventually: 120s
+              wl: status
+              stdout:
+                  - contains: hyprland
+
+            - check: the nested compositor reports a monitor to draw into
+              id: omarchy-cstream-monitor
+              context:
+                  - runtime
+              # gst-wayland-display is the parent here rather than a physical output, so a
+              # monitor list that comes back EMPTY is the specific failure this arrangement
+              # risks — the desktop would be live with nowhere to render.
+              eventually: 120s
+              wl: hypr-monitors
+              stdout:
+                  - contains: '"name"'
+
+            - check: the omarchy shell answers a ping
+              id: omarchy-cstream-shell-ping
+              context:
+                  - runtime
+              # `quickshell:` and not a `command:` step: qs ipc reports IPC-level failures on
+              # STDOUT while exiting ZERO, so a command: step would stay green against a
+              # shell that had lost its ping handler. The supervisor check in
+              # layer-omarchy-shell proves the PROCESS is up; this proves it still SERVES —
+              # a distinction that was not academic here. Before
+              # layer-omarchy-shell's socket-number fix the supervised service was a WAIT
+              # WRAPPER spinning on a socket nothing creates, and its uptime check passed
+              # throughout while Quickshell was never exec'd at all.
+              eventually: 120s
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  # The pod runs the compositor and its shell under a DEDICATED runtime dir,
+                  # and an exec into the container inherits a different one. qs finds
+                  # instances through XDG_RUNTIME_DIR and filters them by DISPLAY, so both
+                  # are load-bearing and they fail DIFFERENTLY: with the step's own dir
+                  # `qs list --all` reports "No running instances"; with the wrong display
+                  # it reports "No running instances for <config>". Neither message names
+                  # the missing half, so both are stated rather than discovered.
+                  runtime_dir: /tmp/cstream-rt
+                  wayland_display: wayland-2
+                  target: shell
+                  function: ping
+
+            - check: the shell loaded its plugins under the nested compositor
+              id: omarchy-cstream-shell-plugins
+              context:
+                  - runtime
+              # A shell can answer a ping with every panel plugin failed to load. Asking for
+              # the list is the difference between "the process replies" and "the desktop is
+              # assembled".
+              eventually: 120s
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  runtime_dir: /tmp/cstream-rt
+                  wayland_display: wayland-2
+                  target: shell
+                  function: listPlugins
+              stdout:
+                  - contains: omarchy.
 
 # ── Omarchy as a VM ──────────────────────────────────────────────────────────────────
 #
@@ -1241,7 +1337,7 @@ check-omarchy-desktop-vm:
             # plugin-quickshell serves the `quickshell:` verb the shell-IPC steps below use.
             # Same mechanism as plugin-wl above: nothing in this VM's image closure requires
             # it, so it rides in through add_candy and the host check runner loads it.
-            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1637'
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1942'
             # omarchy-autologin writes the sddm drop-in and restarts sddm. It is a CANDY,
             # not a plan step, because a deploy's run: steps are install-timeline steps:
             # `charly check live` runs verify-only and skips every mutating step, and a
