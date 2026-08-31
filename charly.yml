@@ -1155,8 +1155,12 @@ check-omarchy-desktop-vm:
             # bed would report green.
             #
             # v2026.242.2204 is the first tag carrying `hypr-layers` (plugin-wl#7); the
-            # bar hide/reveal assertions below do not exist before it.
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.242.2204'
+            # bar hide/reveal assertions below do not exist before it. v2026.243.1001 adds
+            # what the app and clipboard suites need: `exec` and `clipboard set` used to
+            # BLOCK for their whole deadline on commands that do not exit (a GUI app, and
+            # wl-copy holding the selection), reporting failure for launches that had in
+            # fact succeeded — plugin-wl#9.
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1001'
             # omarchy-autologin writes the sddm drop-in and restarts sddm. It is a CANDY,
             # not a plan step, because a deploy's run: steps are install-timeline steps:
             # `charly check live` runs verify-only and skips every mutating step, and a
@@ -1204,6 +1208,12 @@ check-omarchy-desktop-vm:
               id: omarchy-desktop-shell-ping
               context:
                   - runtime
+              # OMARCHY_PATH is prefixed per-command, deliberately. A deploy-level `env:`
+              # looks like the DRY answer and is NOT one: it is the DEPLOY's environment,
+              # not a check-step environment, so hoisting it there left every omarchy-shell
+              # step failing with "OMARCHY_PATH is not set" — 35 failures where 8 stood.
+              # Measured, then reverted; the repetition is the working form.
+              #
               # `omarchy-shell shell ping` is the shell's own IPC. Running a program and
               # asserting it succeeds is what the `command:` verb is for; there is no
               # charly verb for a desktop shell's control channel yet.
@@ -1251,12 +1261,17 @@ check-omarchy-desktop-vm:
               # A `run:` step here would SKIP under check-live's verify-only mode, and the
               # three assertions below would then measure a bar that was never hidden. The
               # mutation has to travel as a check verb to survive the phase that re-verifies
-              # a rebuilt guest. `wl: exec` runs it in the venue and asserts it succeeded.
+              # a rebuilt guest.
+              #
+              # `command:`, NOT `wl: exec`. exec detaches and redirects to /dev/null — right
+              # for a GUI app that never exits, wrong for a fast state change whose exit
+              # status IS the assertion. Run as exec this step passed while the toggle had
+              # not landed, and the reveal below then failed against a bar still parked
+              # off-screen: a swallowed error surfacing as a false failure two steps later.
               #
               # `on` HIDES: omarchy-toggle-bar runs `omarchy-toggle bar-off on`, which touches
               # ~/.local/state/omarchy/toggles/bar-off. The argument names the flag, not the bar.
-              wl:
-                  method: exec
+              command:
                   command: omarchy-toggle-bar on
 
             - check: the hidden bar stays MAPPED — it is parked, not destroyed
@@ -1281,8 +1296,7 @@ check-omarchy-desktop-vm:
               id: omarchy-desktop-bar-reveal
               context:
                   - runtime
-              wl:
-                  method: exec
+              command:
                   command: omarchy-toggle-bar off
 
             - check: the revealed bar returns on screen
@@ -1295,6 +1309,767 @@ check-omarchy-desktop-vm:
                   - matches: 'omarchy-bar\s.*\sonscreen'
 
             # ── the desktop is drawing something real ───────────────────────────────
+
+            # ── upstream: session-test.sh ───────────────────────────────────────────
+            # The remainder of upstream's session suite. The compositor/shell/bar
+            # assertions above already cover its first half; these are the facts it
+            # checks that nothing here did.
+
+            - check: every core shell plugin is loaded
+              id: omarchy-session-shell-plugins
+              context:
+                  - runtime
+              # Upstream asserts these one plugin at a time. One step with thirteen
+              # matchers is the same assertion set and fails with the same specificity —
+              # charly reports which matcher missed — while asking the shell once.
+              eventually: 60s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell listPlugins
+              stdout:
+                  - contains: omarchy.audio
+                  - contains: omarchy.background
+                  - contains: omarchy.bar
+                  - contains: omarchy.bluetooth
+                  - contains: omarchy.clipboard
+                  - contains: omarchy.emojis
+                  - contains: omarchy.menu
+                  - contains: omarchy.monitor
+                  - contains: omarchy.network
+                  - contains: omarchy.notifications
+                  - contains: omarchy.power
+                  - contains: omarchy.reminders
+                  - contains: omarchy.weather
+
+            - check: the audio stack is up
+              id: omarchy-session-pipewire
+              context:
+                  - runtime
+              # Upstream shells out to `wpctl status` and asserts it exits 0. Asking
+              # systemd whether the unit is running is the same fact one layer down, and
+              # it is a typed verb rather than a command whose exit code stands in for a
+              # service state. scope: user because pipewire is a user unit — the field
+              # this repo's plugin-service#5 added.
+              eventually: 60s
+              service:
+                  service: pipewire
+                  scope: user
+                  running: true
+
+            - check: omarchy reports its version
+              id: omarchy-session-version
+              context:
+                  - runtime
+              command:
+                  command: omarchy-version
+
+            - check: no failed system units
+              id: omarchy-session-no-failed-system
+              context:
+                  - runtime
+              # `none_failed:` is this repo's plugin-service#5 work. It reads
+              # is-system-running's STATE rather than its exit code, because an
+              # unreachable manager exits non-zero while having failed nothing — the
+              # failure-open bug that shipped and was fixed there.
+              service:
+                  scope: system
+                  none_failed: true
+
+            - check: no failed user units
+              id: omarchy-session-no-failed-user
+              context:
+                  - runtime
+              service:
+                  scope: user
+                  none_failed: true
+
+            # ── upstream: apps-test.sh ──────────────────────────────────────────────
+            # Launch each daily-use app, prove a window appears, then close it and prove
+            # the window goes away. Upstream guards each app with a pre-existing-window
+            # check because a stale window makes the result ambiguous; this bed's guest is
+            # freshly installed, but the guard is kept — it is what makes the "opens"
+            # assertion mean anything.
+
+            - check: no terminal window is open before launching one
+              id: omarchy-apps-terminal-absent-first
+              context:
+                  - runtime
+              wl: hypr-clients
+              stdout:
+                  - not_matches: '"class": ?"foot"'
+
+            - check: the terminal launches and maps a window
+              id: omarchy-apps-terminal-opens
+              context:
+                  - runtime
+              # wl: exec is fire-and-forget, which is what upstream's launch_app does with
+              # setsid -f. A command: step would block on a GUI app that never exits.
+              eventually: 60s
+              wl:
+                  method: exec
+                  command: foot
+            - check: the terminal window is present
+              id: omarchy-apps-terminal-present
+              context:
+                  - runtime
+              eventually: 60s
+              wl: hypr-clients
+              stdout:
+                  - matches: '"class": ?"foot"'
+
+            - check: closing the terminal removes its window
+              id: omarchy-apps-terminal-closes
+              context:
+                  - runtime
+              eventually: 45s
+              wl:
+                  method: close
+                  target: foot
+            - check: no terminal window remains
+              id: omarchy-apps-terminal-absent-after
+              context:
+                  - runtime
+              eventually: 45s
+              wl: hypr-clients
+              stdout:
+                  - not_matches: '"class": ?"foot"'
+
+            - check: the writer launches and maps a window
+              id: omarchy-apps-writer-opens
+              context:
+                  - runtime
+              eventually: 60s
+              wl:
+                  method: exec
+                  command: omawrite
+            - check: the writer window is present
+              id: omarchy-apps-writer-present
+              context:
+                  - runtime
+              eventually: 90s
+              wl: hypr-clients
+              stdout:
+                  - matches: '(?i)omawrite'
+
+            - check: closing the writer removes its window
+              id: omarchy-apps-writer-closes
+              context:
+                  - runtime
+              eventually: 45s
+              wl:
+                  method: close
+                  target: omawrite
+            - check: no writer window remains
+              id: omarchy-apps-writer-absent-after
+              context:
+                  - runtime
+              eventually: 45s
+              wl: hypr-clients
+              stdout:
+                  - not_matches: '(?i)omawrite'
+
+
+            # ── upstream: menu-test.sh ──────────────────────────────────────────────
+            # Open the root menu, prove its surface maps, and close it with Escape.
+            #
+            # WHAT IS NOT PORTED, and why it is not a shortcut. Upstream then walks a
+            # thirteen-keypress path (Down x3, Return, Down x4, Return, Return, Down x2,
+            # Return) down to the bar-position setting and asserts the bar turns
+            # vertical. Every intermediate screen in that walk is verified with
+            # screen_contains — "Theme", the submenu labels — because a blind key
+            # sequence is only meaningful if you can see where it landed.
+            #
+            # Without OCR the sequence would be guesswork against a menu layout this bed
+            # cannot observe, and against a DIFFERENT layout than upstream's: the guest is
+            # omarchy 4.0.1 and the suite is read at quattro. A sequence tuned to quattro
+            # that lands elsewhere on 4.0.1 fails while the desktop is perfectly correct —
+            # a false failure that teaches nothing and would be silenced rather than
+            # fixed. The navigation is therefore OCR-gated in practice, not only in its
+            # two explicit screen_contains calls, and it is named in the PR as what
+            # `artifact_contains_text:` unlocks.
+
+            - check: the root menu opens
+              id: omarchy-menu-root-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.menu '{"menu":"root"}'
+            - check: the root menu surface is mapped
+              id: omarchy-menu-root-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-menu
+
+            - check: Escape closes the root menu
+              id: omarchy-menu-escape
+              context:
+                  - runtime
+              wl:
+                  method: key
+                  key: Escape
+            - check: the root menu surface is gone
+              id: omarchy-menu-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-menu
+
+            # ── upstream: panels-test.sh ────────────────────────────────────────────
+            # Every bar panel shares one layer namespace, omarchy-keyboard-panel, so each
+            # panel's open/close is asserted against that surface. Upstream's three
+            # screen_contains checks (weather location, weather details, the Bluetooth
+            # label) are the only part not ported.
+
+            - check: give weather deterministic coordinates
+              id: omarchy-panels-weather-location
+              context:
+                  - runtime
+              # Upstream pins San Francisco so the panel exercises the real Open-Meteo
+              # forecast rather than IP geolocation, which in a NAT'd guest would resolve
+              # to the host's egress and make the result environment-dependent.
+              command:
+                  command: omarchy-weather-location --set "San Francisco" "37.7749,-122.4194"
+
+            - check: the weather panel opens
+              id: omarchy-panels-weather-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.weather
+            - check: the weather panel surface is mapped
+              id: omarchy-panels-weather-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-keyboard-panel
+            - check: the weather panel closes
+              id: omarchy-panels-weather-closes
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.weather
+            - check: the weather panel surface is gone
+              id: omarchy-panels-weather-gone
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-keyboard-panel
+
+            - check: the bluetooth panel opens
+              id: omarchy-panels-bluetooth-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.bluetooth
+            - check: the bluetooth panel surface is mapped
+              id: omarchy-panels-bluetooth-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-keyboard-panel
+
+            - check: a single-monitor panel has no dismissal twin
+              id: omarchy-panels-no-dismiss-twin
+              context:
+                  - runtime
+              # Upstream guards this with a monitor-count check because the twin is a
+              # multi-head construct. This guest is deterministically single-head (one
+              # virtio display in the VM spec), so the guard collapses and the assertion
+              # is unconditional.
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-keyboard-panel-dismiss
+
+            - check: Tab keeps a shell panel open
+              id: omarchy-panels-tab-navigation
+              context:
+                  - runtime
+              # The panels' shared keyboard contract: Tab moves to the next bar panel
+              # rather than dismissing the surface.
+              wl:
+                  method: key
+                  key: Tab
+            - check: a panel is still mapped after Tab
+              id: omarchy-panels-tab-still-open
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-keyboard-panel
+
+            - check: Escape closes the panel
+              id: omarchy-panels-escape
+              context:
+                  - runtime
+              wl:
+                  method: key
+                  key: Escape
+            - check: the panel surface is gone after Escape
+              id: omarchy-panels-escape-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-keyboard-panel
+
+            - check: the network panel opens and closes
+              id: omarchy-panels-network-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.network
+            - check: the network panel surface is mapped
+              id: omarchy-panels-network-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-keyboard-panel
+            - check: hide the network panel
+              id: omarchy-panels-network-hide
+              context:
+                  - runtime
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.network
+
+            - check: the audio panel opens
+              id: omarchy-panels-audio-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.audio
+            - check: the audio panel surface is mapped
+              id: omarchy-panels-audio-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-keyboard-panel
+            - check: hide the audio panel
+              id: omarchy-panels-audio-hide
+              context:
+                  - runtime
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.audio
+
+            - check: the monitor panel opens
+              id: omarchy-panels-monitor-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.monitor
+            - check: the monitor panel surface is mapped
+              id: omarchy-panels-monitor-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-keyboard-panel
+            - check: hide the monitor panel
+              id: omarchy-panels-monitor-hide
+              context:
+                  - runtime
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.monitor
+
+            - check: the guest has no battery, so the power panel is correctly unavailable
+              id: omarchy-panels-power-no-battery
+              context:
+                  - runtime
+              # Upstream branches on `upower -e | grep /battery_` and, on hardware without
+              # a battery, asserts the no-panel path rather than treating it as a shell
+              # failure. A libvirt guest deterministically has no battery, so the branch
+              # collapses to its else arm — which is the arm worth pinning here, because a
+              # power panel APPEARING on a machine with no battery would be the defect.
+              command:
+                  command: upower -e
+              stdout:
+                  - not_contains: /battery_
+
+            # ── upstream: shell-surfaces-test.sh ────────────────────────────────────
+            # Each shell surface: summon it, prove its layer maps, drive it, prove it
+            # unmaps. Unlike the menu's positional walk these flows are SEARCH-driven —
+            # they type a string and press Return — so they do not depend on a menu
+            # layout this bed cannot observe, and they port faithfully. Upstream's four
+            # screen_contains checks (clipboard search hit, "Shutdown", "Reminder
+            # message", the notification body) are the only part not ported.
+
+            - check: the emoji picker opens
+              id: omarchy-surfaces-emoji-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.emojis
+            - check: the emoji picker surface is mapped
+              id: omarchy-surfaces-emoji-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-emojis
+            - check: type a search term into the emoji picker
+              id: omarchy-surfaces-emoji-search
+              context:
+                  - runtime
+              wl:
+                  method: type
+                  text: rocket
+            - check: selecting an emoji closes the picker
+              id: omarchy-surfaces-emoji-select
+              context:
+                  - runtime
+              wl:
+                  method: key
+                  key: Return
+            - check: the emoji picker surface is gone
+              id: omarchy-surfaces-emoji-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-emojis
+
+            - check: seed the clipboard with a known token
+              id: omarchy-surfaces-clipboard-seed
+              context:
+                  - runtime
+              # A fixed token, not upstream's $(date +%s): the bed rebuilds from nothing
+              # on [update], so there is no stale history to collide with, and a constant
+              # makes the paste assertion below an exact equality instead of a variable
+              # the step would have to carry.
+              wl:
+                  method: clipboard
+                  action: set
+                  text: charly-acceptance-clipboard-token
+            - check: the clipboard history captures the token
+              id: omarchy-surfaces-clipboard-history
+              context:
+                  - runtime
+              eventually: 30s
+              file:
+                  file: /home/user/.local/state/omarchy/clipboard-history.json
+                  contains: charly-acceptance-clipboard-token
+
+            - check: the clipboard surface opens
+              id: omarchy-surfaces-clipboard-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.clipboard
+            - check: the clipboard surface is mapped
+              id: omarchy-surfaces-clipboard-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-clipboard
+            - check: closing the clipboard leaves the token on the clipboard
+              id: omarchy-surfaces-clipboard-escape
+              context:
+                  - runtime
+              wl:
+                  method: key
+                  key: Escape
+            - check: the clipboard surface is gone
+              id: omarchy-surfaces-clipboard-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-clipboard
+            - check: the clipboard still holds the token
+              id: omarchy-surfaces-clipboard-readback
+              context:
+                  - runtime
+              # Upstream selects a history entry with shift+Return and asserts wl-paste
+              # returns the older token. Selecting the right ROW needs the search hit to
+              # be visible, which is OCR; the read-back itself does not, so the assertion
+              # kept here is that the clipboard round-trips through the compositor's data
+              # device at all.
+              wl:
+                  method: clipboard
+                  action: get
+              stdout:
+                  - contains: charly-acceptance-clipboard-token
+
+            - check: the system menu opens
+              id: omarchy-surfaces-sysmenu-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.menu '{"menu":"system"}'
+            - check: the system menu surface is mapped
+              id: omarchy-surfaces-sysmenu-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-menu
+            - check: Escape closes the system menu without invoking anything
+              id: omarchy-surfaces-sysmenu-escape
+              context:
+                  - runtime
+              # Deliberately Escape and never Return: the system menu's entries are
+              # shutdown/reboot/logout, and upstream is explicit that this branch is
+              # exercised WITHOUT invoking a destructive action.
+              wl:
+                  method: key
+                  key: Escape
+            - check: the system menu surface is gone
+              id: omarchy-surfaces-sysmenu-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-menu
+
+            - check: the background selector opens
+              id: omarchy-surfaces-bg-opens
+              context:
+                  - runtime
+              wl:
+                  method: exec
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-theme-bg-switcher
+            - check: the background selector surface is mapped
+              id: omarchy-surfaces-bg-mapped
+              context:
+                  - runtime
+              # 45s, matching upstream's own longer timeout here: this surface generates
+              # wallpaper thumbnails before it maps.
+              eventually: 45s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-image-selector
+            - check: Escape closes the background selector
+              id: omarchy-surfaces-bg-escape
+              context:
+                  - runtime
+              wl:
+                  method: key
+                  key: Escape
+            - check: the background selector surface is gone
+              id: omarchy-surfaces-bg-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-image-selector
+
+            - check: the theme selector opens
+              id: omarchy-surfaces-theme-opens
+              context:
+                  - runtime
+              wl:
+                  method: exec
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-theme-switcher
+            - check: the theme selector surface is mapped
+              id: omarchy-surfaces-theme-mapped
+              context:
+                  - runtime
+              eventually: 45s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-image-selector
+            - check: Escape closes the theme selector without changing the theme
+              id: omarchy-surfaces-theme-escape
+              context:
+                  - runtime
+              wl:
+                  method: key
+                  key: Escape
+            - check: the theme selector surface is gone
+              id: omarchy-surfaces-theme-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-image-selector
+
+            - check: the reminder flow opens
+              id: omarchy-surfaces-reminders-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.reminders
+            - check: the reminder surface is mapped
+              id: omarchy-surfaces-reminders-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-reminders
+            - check: enter a duration in the reminder prompt
+              id: omarchy-surfaces-reminders-minutes
+              context:
+                  - runtime
+              wl:
+                  method: type
+                  text: "5"
+            - check: advance past the duration prompt
+              id: omarchy-surfaces-reminders-submit
+              context:
+                  - runtime
+              # Upstream presses Return here to reach the MESSAGE prompt, then Escapes from
+              # there. Escaping straight from the duration field left the surface mapped and
+              # the close assertion failed — the flow has more than one screen, and dismissing
+              # it means being on the screen upstream dismisses from.
+              wl:
+                  method: key
+                  key: Return
+
+            - check: dismiss the reminder before it schedules a timer
+              id: omarchy-surfaces-reminders-escape
+              context:
+                  - runtime
+              # Escape, not Return: upstream walks the input screens but dismisses before
+              # a real timer lands in the test user's session.
+              wl:
+                  method: key
+                  key: Escape
+            - check: the reminder surface is gone
+              id: omarchy-surfaces-reminders-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-reminders
+
+            - check: clear any pending notifications
+              id: omarchy-surfaces-notify-clear-first
+              context:
+                  - runtime
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell notifications dismissAll
+            - check: send a notification through the shell
+              id: omarchy-surfaces-notify-send
+              context:
+                  - runtime
+              command:
+                  command: omarchy-notification-send "Acceptance notification" "Shell notification rendering" --expire-time=15000
+            - check: the notification popup surface is mapped
+              id: omarchy-surfaces-notify-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-notifications
+            - check: dismissing clears the notification popup
+              id: omarchy-surfaces-notify-dismiss
+              context:
+                  - runtime
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell notifications dismissAll
+            - check: the notification popup surface is gone
+              id: omarchy-surfaces-notify-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-notifications
+
+            - check: the apps menu opens
+              id: omarchy-surfaces-appsmenu-opens
+              context:
+                  - runtime
+              eventually: 30s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-menu summon apps
+            - check: the apps menu surface is mapped
+              id: omarchy-surfaces-appsmenu-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-menu
+            - check: search the apps menu by name
+              id: omarchy-surfaces-appsmenu-search
+              context:
+                  - runtime
+              # Search-driven, so this does not depend on menu ordering the way the
+              # position walk does — typing a name and taking the top hit is stable
+              # across layouts.
+              wl:
+                  method: type
+                  text: omawrite
+            - check: launch the top search hit
+              id: omarchy-surfaces-appsmenu-launch
+              context:
+                  - runtime
+              wl:
+                  method: key
+                  key: Return
+            - check: the apps menu launched the app it searched for
+              id: omarchy-surfaces-appsmenu-launched
+              context:
+                  - runtime
+              eventually: 90s
+              wl: hypr-clients
+              stdout:
+                  - matches: '(?i)omawrite'
+            - check: the apps menu closes after launching
+              id: omarchy-surfaces-appsmenu-closed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - not_contains: omarchy-menu
+            - check: close the launched app
+              id: omarchy-surfaces-appsmenu-close-app
+              context:
+                  - runtime
+              eventually: 45s
+              wl:
+                  method: close
+                  target: omawrite
+            - check: no launched app window remains
+              id: omarchy-surfaces-appsmenu-app-gone
+              context:
+                  - runtime
+              eventually: 45s
+              wl: hypr-clients
+              stdout:
+                  - not_matches: '(?i)omawrite'
+
             - check: the desktop renders a non-uniform screenshot
               id: omarchy-desktop-screenshot
               context:
