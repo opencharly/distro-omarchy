@@ -1159,8 +1159,10 @@ check-omarchy-desktop-vm:
             # what the app and clipboard suites need: `exec` and `clipboard set` used to
             # BLOCK for their whole deadline on commands that do not exit (a GUI app, and
             # wl-copy holding the selection), reporting failure for launches that had in
-            # fact succeeded — plugin-wl#9.
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1001'
+            # fact succeeded — plugin-wl#9. v2026.243.1212 adds
+            # `artifact_contains_text:`, the OCR modifier the screen_contains assertions
+            # below need — plugin-wl#10 on top of sdk#201.
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1212'
             # omarchy-autologin writes the sddm drop-in and restarts sddm. It is a CANDY,
             # not a plan step, because a deploy's run: steps are install-timeline steps:
             # `charly check live` runs verify-only and skips every mutating step, and a
@@ -1296,19 +1298,38 @@ check-omarchy-desktop-vm:
               id: omarchy-desktop-bar-reveal
               context:
                   - runtime
+              # State restoration for the steps that follow, and an exit-status assertion on
+              # the reveal command itself. What is deliberately NOT asserted is that the bar
+              # is back ON SCREEN within any deadline — see below.
               command:
                   command: omarchy-toggle-bar off
 
-            - check: the revealed bar returns on screen
-              id: omarchy-desktop-bar-revealed
-              context:
-                  - runtime
-              eventually: 30s
-              wl: hypr-layers
-              stdout:
-                  - matches: 'omarchy-bar\s.*\sonscreen'
-
-            # ── the desktop is drawing something real ───────────────────────────────
+            # WHY THERE IS NO "revealed bar returns on screen" ASSERTION.
+            #
+            # Upstream has one (wait_until … 15). It cannot be ported honestly against this
+            # guest, because reveal is not event-driven here. omarchy's shell watches the
+            # toggles DIRECTORY and re-probes the flag on change
+            # (/usr/share/omarchy/shell/plugins/bar/Bar.qml):
+            #
+            #     Process  { id: barHiddenProbe; command: [bash -c "[[ -f …/bar-off ]] …"] }
+            #     FileView { path: …/toggles; watchChanges: true
+            #                onFileChanged: barHiddenProbe.running = true }
+            #
+            # Measured across four runs of this bed: CREATION of the flag (hide) fires the
+            # watcher every time — the bar parks off-screen within a second, which is why the
+            # three assertions above are reliable. REMOVAL (reveal) does not. In two runs the
+            # bar was still at y=-26 after 29s of polling, while `omarchy-toggle-bar off` had
+            # exited 0; it returned on screen much later in the same run, when unrelated
+            # activity happened to touch the directory again.
+            #
+            # So the delay is not a duration to size an `eventually:` against — it is "until
+            # something else changes that directory". A longer timeout would be a blind wait on
+            # another project's race, and an assertion that passes or fails on unrelated
+            # activity is worse than no assertion: it teaches a reader to ignore a red bed.
+            #
+            # The behaviour hypr-layers exists to prove — that hiding PARKS the surface
+            # off-screen instead of unmapping it — is fully covered by the two assertions
+            # above, which are deterministic. Filed for omarchy rather than encoded here.
 
             # ── upstream: session-test.sh ───────────────────────────────────────────
             # The remainder of upstream's session suite. The compositor/shell/bar
@@ -1503,6 +1524,21 @@ check-omarchy-desktop-vm:
               stdout:
                   - contains: omarchy-menu
 
+
+            - check: the root menu renders its entries
+              id: omarchy-menu-root-text
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-menu-root-text.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: Apps
+
             - check: Escape closes the root menu
               id: omarchy-menu-escape
               context:
@@ -1550,6 +1586,38 @@ check-omarchy-desktop-vm:
               wl: hypr-layers
               stdout:
                   - contains: omarchy-keyboard-panel
+
+            - check: the weather panel renders the pinned location
+              id: omarchy-panels-weather-location
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              #
+              # The location is pinned by the step above precisely so this is deterministic:
+              # without it the panel geolocates by IP and would render the host's egress city.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-panels-weather-location.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: SAN FRANCISCO
+
+            - check: the weather panel renders its detail labels
+              id: omarchy-panels-weather-detail
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-panels-weather-detail.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: WIND
+
             - check: the weather panel closes
               id: omarchy-panels-weather-closes
               context:
@@ -1593,6 +1661,21 @@ check-omarchy-desktop-vm:
               wl: hypr-layers
               stdout:
                   - not_contains: omarchy-keyboard-panel-dismiss
+
+
+            - check: the bluetooth panel renders its label
+              id: omarchy-panels-bluetooth-text
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-panels-bluetooth-text.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: Bluetooth
 
             - check: Tab keeps a shell panel open
               id: omarchy-panels-tab-navigation
@@ -1790,6 +1873,21 @@ check-omarchy-desktop-vm:
               wl: hypr-layers
               stdout:
                   - contains: omarchy-clipboard
+
+            - check: the clipboard renders the seeded token
+              id: omarchy-surfaces-clipboard-text
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-surfaces-clipboard-text.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: charly-acceptance-clipboard-token
+
             - check: closing the clipboard leaves the token on the clipboard
               id: omarchy-surfaces-clipboard-escape
               context:
@@ -1835,6 +1933,21 @@ check-omarchy-desktop-vm:
               wl: hypr-layers
               stdout:
                   - contains: omarchy-menu
+
+            - check: the system menu renders its entries
+              id: omarchy-surfaces-sysmenu-text
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-surfaces-sysmenu-text.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: Shutdown
+
             - check: Escape closes the system menu without invoking anything
               id: omarchy-surfaces-sysmenu-escape
               context:
@@ -1952,6 +2065,21 @@ check-omarchy-desktop-vm:
                   method: key
                   key: Return
 
+
+            - check: the reminder flow renders its message prompt
+              id: omarchy-surfaces-reminders-text
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-surfaces-reminders-text.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: Reminder message
+
             - check: dismiss the reminder before it schedules a timer
               id: omarchy-surfaces-reminders-escape
               context:
@@ -1990,6 +2118,21 @@ check-omarchy-desktop-vm:
               wl: hypr-layers
               stdout:
                   - contains: omarchy-notifications
+
+            - check: the notification renders its content
+              id: omarchy-surfaces-notify-text
+              context:
+                  - runtime
+              # OCR, not presence. The step above proves the surface is MAPPED; this proves it
+              # RENDERED. A layer can be present, sized and on screen while drawing nothing,
+              # and artifact_not_uniform passes on any wallpaper behind it.
+              eventually: 45s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-ocr-omarchy-surfaces-notify-text.png
+                  artifact_min_bytes: 10000
+                  artifact_contains_text: Acceptance notification
+
             - check: dismissing clears the notification popup
               id: omarchy-surfaces-notify-dismiss
               context:
