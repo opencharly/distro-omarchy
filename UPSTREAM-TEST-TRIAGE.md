@@ -8,7 +8,16 @@ classification can be re-run and disputed rather than taken on trust.
 ## Method
 
 Upstream suite measured at `omacom/omarchy@quattro`, `test/` — **224** entries in
-`test/shell.d` (the plan that opened this work said 220; upstream moved).
+`test/shell.d` (the plan that opened this work said 220; upstream moved). Of those, **223 are
+test files** and one is the `fixtures/` directory, which holds sample inputs for other tests
+and is not itself a test. The classification below covers the **223 files**; `fixtures/` is
+excluded because there is nothing in it to classify, not because it was overlooked.
+
+```
+$ ls test/shell.d | wc -l                            # 224
+$ find test/shell.d -maxdepth 1 -type f | wc -l      # 223
+$ find test/shell.d -maxdepth 1 -mindepth 1 -type d  # ./fixtures
+```
 
 Each file is classified by what it can observe, using signals in the file itself:
 
@@ -38,6 +47,7 @@ strictly stronger: it proves the machine, not the call.
 | C — Python source scanners | 13 |
 | C — other source-level | 89 |
 | **B — candidates** | **82** |
+| **total classified** | **223** — every test file; the 224th entry is `fixtures/` |
 
 The 82 candidates were cross-referenced against the **43** distinct assertion targets this
 repo's beds already carry (`file:`, `package:`, `service:`, `mount:` subjects extracted
