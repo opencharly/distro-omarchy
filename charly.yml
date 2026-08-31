@@ -1017,65 +1017,69 @@ check-omarchy-pacstrap-vm:
               id: omarchy-pacstrap-os-release
               context:
                 - runtime
-              stdout:
-                - contains: 'ID=omarchy'
-              command:
-                # omarchy-settings replaces /etc/os-release, and it arrives only from
-                # Omarchy's own repositories. A builder that had silently fetched from
-                # upstream Arch would produce ID=arch here — which is precisely the
-                # divergence omarchy-pacstrap-builder's `base: omarchy` exists to prevent,
-                # and this is where it becomes observable in the finished guest.
-                command: grep '^ID=' /etc/os-release
+              # omarchy-settings replaces /etc/os-release, and it arrives only from
+              # Omarchy's own repositories. A builder that had silently fetched from
+              # upstream Arch would produce ID=arch here — which is precisely the
+              # divergence omarchy-pacstrap-builder's `base: omarchy` exists to prevent,
+              # and this is where it becomes observable in the finished guest.
+              file:
+                  file: /etc/os-release
+                  contains:
+                      - 'ID=omarchy'
 
             - check: root is the @ subvolume of a btrfs filesystem
               id: omarchy-pacstrap-root-subvol
               context:
                 - runtime
-              stdout:
-                - contains: 'subvol=/@'
-              command:
-                # The distro's disk_layout drove this, not the installer: charly's own
-                # EmitDiskBuildScript created the subvolumes and mounted @ as root.
-                command: findmnt -no FSTYPE,OPTIONS /
+              # The distro's disk_layout drove this, not the installer: charly's own
+              # EmitDiskBuildScript created the subvolumes and mounted @ as root.
+              #
+              # An anchored regex, not `contains`: `mount:` matches the whole comma-joined
+              # option string, so `subvol=/@` would also match `subvol=/@home`.
+              mount:
+                  mount: /
+                  filesystem: btrfs
+                  opt:
+                      - matches: 'subvol=/@($|,)'
 
             - check: the ESP is vfat at /boot, the layout limine assumes
               id: omarchy-pacstrap-esp
               context:
                 - runtime
-              stdout:
-                - contains: vfat
-              command: {command: findmnt -no FSTYPE /boot}
+              mount:
+                  mount: /boot
+                  filesystem: vfat
 
             - check: the kernel was booted with the command line limine's config specifies
               id: omarchy-pacstrap-limine-cmdline
               context:
                 - runtime
-              stdout:
-                - contains: 'rootflags=subvol=@'
-                - contains: 'rootfstype=btrfs'
-              command:
-                # NOT efibootmgr, and the difference is the point.
-                #
-                # check-omarchy-iso-vm asserts a NAMED NVRAM entry (`Boot0005* Limine …
-                # limine_x64.efi`) because Omarchy's installer registers one. The bootstrap
-                # path does not: charly's install_template runs `efibootmgr --create` inside
-                # the builder container against a loop device, where the write does not reach
-                # the guest's own OVMF variable store. The guest boots limine anyway, through
-                # the firmware's auto-created removable-media entry:
-                #
-                #   BootCurrent: 0002
-                #   Boot0002* UEFI Misc Device  PciRoot(…){auto_created_boot_option}
-                #
-                # which loads /boot/EFI/BOOT/BOOTX64.EFI — limine's binary, put there by the
-                # same template. Asserting a named entry here would demand a mechanism this
-                # path legitimately does not use, and the bed's first run failed on exactly
-                # that. This is a corrected check, not a weakened one.
-                #
-                # /proc/cmdline is the stronger assertion available: these flags exist ONLY in
-                # the limine.conf charly's bootloader template wrote, so the running kernel
-                # having them proves that config drove this boot. A guest that booted some
-                # other way could not have them.
-                command: cat /proc/cmdline
+              # NOT efibootmgr, and the difference is the point.
+              #
+              # check-omarchy-iso-vm asserts a NAMED NVRAM entry (`Boot0005* Limine …
+              # limine_x64.efi`) because Omarchy's installer registers one. The bootstrap
+              # path does not: charly's install_template runs `efibootmgr --create` inside
+              # the builder container against a loop device, where the write does not reach
+              # the guest's own OVMF variable store. The guest boots limine anyway, through
+              # the firmware's auto-created removable-media entry:
+              #
+              #   BootCurrent: 0002
+              #   Boot0002* UEFI Misc Device  PciRoot(…){auto_created_boot_option}
+              #
+              # which loads /boot/EFI/BOOT/BOOTX64.EFI — limine's binary, put there by the
+              # same template. Asserting a named entry here would demand a mechanism this
+              # path legitimately does not use, and the bed's first run failed on exactly
+              # that. This is a corrected check, not a weakened one.
+              #
+              # /proc/cmdline is the stronger assertion available: these flags exist ONLY in
+              # the limine.conf charly's bootloader template wrote, so the running kernel
+              # having them proves that config drove this boot. A guest that booted some
+              # other way could not have them.
+              file:
+                  file: /proc/cmdline
+                  contains:
+                      - 'rootflags=subvol=@'
+                      - 'rootfstype=btrfs'
 
             - check: limine's loader is on the ESP where the firmware finds it
               id: omarchy-pacstrap-limine-on-esp
