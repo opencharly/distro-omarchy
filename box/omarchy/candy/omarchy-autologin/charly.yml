@@ -1,0 +1,51 @@
+omarchy-autologin:
+    candy:
+        version: 2026.243.0532
+        description: |
+            Starts a graphical session without a human at the keyboard, by writing an sddm
+            autologin drop-in. A stock Omarchy boots to the sddm greeter and WAITS — correct
+            for a desktop distro, and fatal for an unattended bed, which has nobody to type a
+            password.
+
+            This is deliberately NOT part of omarchy-vm. That template exists to prove
+            Omarchy's own installer produces a correct machine, and baking a login into it
+            would weaken exactly the claim it makes. Composing this candy onto a deploy keeps
+            the stock install stock and makes the desktop a separate, explicit choice.
+
+            WHY A CANDY AND NOT A PLAN STEP. A deploy's `run:` steps are INSTALL-TIMELINE
+            steps: `charly check live` runs verify-only and skips every mutating step
+            (sdk/kit/planrun.go), and a `from:`-derived VM whose image is already built never
+            replays them. A bed that wrote its own autologin from its plan therefore wrote it
+            NEVER, and every downstream assertion failed against a guest still sitting at the
+            greeter. Candy install runs on the install timeline, which is where a change to
+            the machine belongs.
+
+            The account is resolved from uid 1000 rather than hardcoded, so this composes onto
+            any single-user Omarchy install regardless of the installer answers. The drop-in
+            sorts LAST in /etc/sddm.conf.d (sddm merges alphabetically, later wins), so a
+            distro drop-in cannot silently take the login back.
+        plan:
+            - run: write the sddm autologin drop-in for the uid-1000 account
+              run_as: root
+              command: |
+                  set -eu
+                  u="$(getent passwd 1000 | cut -d: -f1)"
+                  test -n "$u"
+                  mkdir -p /etc/sddm.conf.d
+                  printf '[Autologin]\nUser=%s\nSession=hyprland-uwsm.desktop\n' "$u" \
+                      > /etc/sddm.conf.d/zz-charly-autologin.conf
+                  chmod 0644 /etc/sddm.conf.d/zz-charly-autologin.conf
+
+            - run: restart sddm so the drop-in takes effect
+              run_as: root
+              # sddm reads its config once, at start. The greeter is already running from the
+              # boot that preceded this install, so it must be replaced, not reloaded.
+              command: systemctl restart sddm
+
+            - check: the autologin drop-in names a session and an account
+              id: omarchy-autologin-configured
+              file:
+                  file: /etc/sddm.conf.d/zz-charly-autologin.conf
+                  contains:
+                      - '[Autologin]'
+                      - Session=hyprland-uwsm.desktop
