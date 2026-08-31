@@ -1088,3 +1088,224 @@ check-omarchy-pacstrap-vm:
                     sudo -n test -f /boot/EFI/BOOT/BOOTX64.EFI
                     sudo -n test -f /boot/limine.conf
                     echo LIMINE-ON-ESP
+
+
+# ── check-omarchy-desktop-vm — the DESKTOP, not the install ──────────────────────
+# check-omarchy-iso-vm proves Omarchy installs itself unattended and asserts 52 facts
+# about the installed system. It deliberately does NOT log in: a stock Omarchy boots to
+# the sddm greeter and waits for a human, and adding autologin to that bed would weaken
+# the one thing it exists to prove — that a STOCK unattended install is correct.
+#
+# So the desktop gets its own bed. Measured on a guest installed by check-omarchy-iso-vm:
+#
+#     sddm: active          graphical.target: active
+#     c1  962 sddm seat0 635 greeter tty1        <- stopped at the login screen
+#     673 Hyprland --config /usr/share/sddm/hyprland.lua   <- sddm's GREETER compositor
+#     /run/user/1000/hypr                        <- does not exist
+#
+# The only Hyprland running is sddm's own greeter. There is no user session, so every
+# assertion upstream's session/panels/shell-surfaces suites make has nothing to observe.
+# Omarchy's installer-written /etc/sddm.conf.d/99-omarchy-login.conf sets the theme and
+# RememberLastUser and no autologin — correct for a desktop distro, fatal for a bed.
+#
+# This bed arranges the login explicitly, which is the same thing upstream's own ISO
+# harness must do for its acceptance run. That is the ONLY difference from the stock
+# guest; everything asserted below is Omarchy's own behaviour once somebody is logged in.
+check-omarchy-desktop-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Sole proof that the Omarchy DESKTOP actually comes up — that a logged-in
+            session reaches a live Hyprland with the Quickshell shell's layer surfaces
+            mapped and on screen. Derives from the omarchy-vm template, so the guest is
+            the same faithful unattended ISO install check-omarchy-iso-vm gates; the only
+            addition is an sddm autologin drop-in, because a stock Omarchy waits at the
+            greeter for a human and a bed has none.
+            .
+            What it proves that check-omarchy-iso-vm cannot: that install-time correctness
+            (52 assertions there) actually produces a WORKING desktop. Those are different
+            claims — a guest can have every package, unit and subvolume right and still
+            fail to draw a bar.
+            .
+            The bar assertions are the reason `wl: hypr-layers` exists. A layer surface can
+            be MAPPED but parked outside the monitor — that is how Omarchy hides its bar,
+            because unmapping would force the surface to be rebuilt on reveal. Shown and
+            hidden are the same `hyprctl -j layers` JSON except for coordinates, so
+            presence alone cannot tell them apart; the method correlates each surface
+            against the monitor's logical bounds and emits an onscreen/offscreen verdict.
+        add_candy:
+            # plugin-wl serves the `wl:` check verb OUT OF PROCESS, host-side. Nothing in
+            # this VM's image closure requires it — the wl: steps below are authored INLINE
+            # in the plan — so it rides in here and the host check runner loads it via the
+            # deploy's add_candy. Same mechanism distro-arch uses for plugin-spice.
+            #
+            # This pin is not optional decoration. WITHOUT it the wl: steps do not fail:
+            # they SKIP as an unknown verb, and a skipped step reads as not-failed in the
+            # summary. Six of this bed's assertions would silently assert nothing and the
+            # bed would report green.
+            #
+            # v2026.242.2204 is the first tag carrying `hypr-layers` (plugin-wl#7); the
+            # bar hide/reveal assertions below do not exist before it.
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.242.2204'
+        install_opts:
+            allow_root_tasks: true
+        plan:
+            # ── arrange the login ───────────────────────────────────────────────────
+            - run: enable sddm autologin so a session starts with nobody at the keyboard
+              write: /etc/sddm.conf.d/zz-charly-autologin.conf
+              run_as: root
+              mode: "0644"
+              # sddm merges /etc/sddm.conf.d/* in ALPHABETICAL order and LATER files win,
+              # so the name sorts last on purpose. Read off the guest's own config, omarchy's
+              # 99-omarchy-login.conf sets only [Theme] Current and [Users] Remember*, and no
+              # [Autologin] — so there is no key collision either way; sorting last simply
+              # means a future omarchy drop-in cannot silently take the login back.
+              #
+              # RememberLastSession=true is set there, which is why Session= is pinned here
+              # rather than left to sddm's memory: a bed must not depend on what the last
+              # human picked.
+              #
+              # Session names a file in /usr/share/wayland-sessions. The guest ships exactly
+              # hyprland-uwsm.desktop and hyprland.desktop, and omarchy runs Hyprland under
+              # uwsm (Exec=uwsm start -e -D Hyprland hyprland.desktop), so hyprland-uwsm is
+              # the session a real login starts.
+              content: |
+                  [Autologin]
+                  User=user
+                  Session=hyprland-uwsm.desktop
+
+            - run: restart sddm so the autologin drop-in takes effect
+              run_as: root
+              # sddm reads its config at start; the greeter is already running from the
+              # boot that preceded this step, so it has to be replaced rather than reloaded.
+              command:
+                  command: systemctl restart sddm
+
+            # ── the session exists at all ───────────────────────────────────────────
+            - check: a user Hyprland session is running, not just sddm's greeter compositor
+              id: omarchy-desktop-session-up
+              context:
+                  - runtime
+              # The instance directory is the discriminator. sddm's greeter runs its OWN
+              # Hyprland (--config /usr/share/sddm/hyprland.lua) as the sddm user, which
+              # leaves nothing in /run/user/1000. This directory existing means the LOGGED-IN
+              # user has a compositor, which is the precondition for everything below.
+              eventually: 120s
+              file:
+                  file: /run/user/1000/hypr
+                  filetype: directory
+
+            - check: the compositor reports a monitor
+              id: omarchy-desktop-monitor
+              context:
+                  - runtime
+              eventually: 60s
+              wl: hypr-monitors
+              stdout:
+                  - contains: '"name"'
+
+            - check: the wl verb reports hyprland as the live compositor
+              id: omarchy-desktop-compositor
+              context:
+                  - runtime
+              eventually: 60s
+              wl: status
+              stdout:
+                  - contains: hyprland
+
+            # ── the Quickshell shell's surfaces ─────────────────────────────────────
+            - check: the omarchy shell answers a ping
+              id: omarchy-desktop-shell-ping
+              context:
+                  - runtime
+              # `omarchy-shell shell ping` is the shell's own IPC. Running a program and
+              # asserting it succeeds is what the `command:` verb is for; there is no
+              # charly verb for a desktop shell's control channel yet.
+              #
+              # OMARCHY_PATH is set explicitly because omarchy-shell hard-fails with
+              # "OMARCHY_PATH is not set" without it, and the guest only exports it through
+              # the bash rc chain (/usr/share/omarchy/default/bash/env-bootstrap, which the
+              # guest itself documents as the single source of truth). A charly command step
+              # is not a login shell, so it inherits nothing. /usr/share/omarchy is the value
+              # env-bootstrap falls back to on a production install — the dev-link override
+              # in /etc/omarchy.conf does not exist on a stock guest.
+              eventually: 120s
+              command:
+                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell ping
+
+            - check: the background layer surface is mapped and on screen
+              id: omarchy-desktop-background-onscreen
+              context:
+                  - runtime
+              # hypr-clients cannot see this: the wallpaper is a layer-shell surface, not a
+              # toplevel. Every method this plugin had before hypr-layers was blind to it.
+              eventually: 120s
+              wl: hypr-layers
+              stdout:
+                  - matches: 'omarchy-background\s.*\sonscreen'
+
+            - check: the bar layer surface is mapped and on screen
+              id: omarchy-desktop-bar-onscreen
+              context:
+                  - runtime
+              eventually: 120s
+              wl: hypr-layers
+              stdout:
+                  - matches: 'omarchy-bar\s.*\sonscreen'
+
+            # ── the assertion hypr-layers was built for ─────────────────────────────
+            # Upstream's session-test.sh calls this out explicitly: "Hiding parks the bar
+            # off-screen without unmapping its layer surface, and revealing brings that same
+            # surface back on-screen." Presence is unchanged across both states; only the
+            # geometry moves. A check that asserted presence would pass either way.
+            - run: hide the bar
+              command:
+                  command: omarchy-toggle-bar on
+
+            - check: the hidden bar stays MAPPED — it is parked, not destroyed
+              id: omarchy-desktop-bar-hidden-mapped
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - contains: omarchy-bar
+
+            - check: the hidden bar is parked OFF screen
+              id: omarchy-desktop-bar-hidden-offscreen
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - matches: 'omarchy-bar\s.*\soffscreen'
+
+            - run: reveal the bar again
+              command:
+                  command: omarchy-toggle-bar off
+
+            - check: the revealed bar returns on screen
+              id: omarchy-desktop-bar-revealed
+              context:
+                  - runtime
+              eventually: 30s
+              wl: hypr-layers
+              stdout:
+                  - matches: 'omarchy-bar\s.*\sonscreen'
+
+            # ── the desktop is drawing something real ───────────────────────────────
+            - check: the desktop renders a non-uniform screenshot
+              id: omarchy-desktop-screenshot
+              context:
+                  - runtime
+              # artifact_not_uniform is what makes this more than "grim exited 0": a 100KB
+              # all-black PNG passes a byte check and fails this one, which is exactly the
+              # failure mode a compositor that started but never drew produces.
+              eventually: 60s
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-desktop.png
+                  artifact_min_bytes: 10000
+                  artifact_not_uniform: true
