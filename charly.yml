@@ -80,17 +80,21 @@ check-omarchy-cstream-pod:
 # unattended. What you get is what Omarchy's authors ship — limine + a UKI, btrfs
 # @/@home/@log/@pkg, snapper, sddm + uwsm. Charly supplies only the answers.
 #
-# A composable sibling (omarchy-pacstrap-vm, charly's own machinery reproducing Omarchy
-# from packages) is NOT here yet: it needs an omarchy-pacstrap-builder box, which needs
-# `limine` added to layer-pacstrap-builder first — the bootloader install runs INSIDE the
-# builder container against the mounted target, so the binary must exist there. That is
-# its own repo's PR, and an entity naming a builder box that does not exist would not
-# validate.
+# The composable sibling omarchy-pacstrap-vm (charly's own machinery reproducing Omarchy
+# from packages) LANDED — it is below, with check-omarchy-pacstrap-vm proving it boots.
+# The two answer different questions and both are kept: omarchy-vm proves Omarchy's own
+# installer produces a correct machine, omarchy-pacstrap-vm proves charly's from-packages
+# path does.
 #
-# A `charly-omarchy` keeper deploy would be a DEPLOY of this template, not a second
-# template: a deploy's `from:` carries deploy-scope fields only (add_candy, install_opts,
-# disposable, env, plan) and the VM SPEC comes wholly from the named kind: vm entity, so
-# credentials live here and are never restated.
+# charly-omarchy is a DEPLOY of this template, not a second template: a deploy's `from:`
+# carries deploy-scope fields only (add_candy, install_opts, disposable, env, plan) and the
+# VM SPEC comes wholly from the named kind: vm entity, so credentials live here and are
+# never restated.
+#
+# check-omarchy-desktop-vm is the third VM claim and the only one about the DESKTOP. It
+# derives from omarchy-vm and adds an sddm autologin drop-in, because a stock Omarchy stops
+# at the greeter and a bed has nobody to type a password. Install-time correctness and a
+# working desktop are different claims, so they are different beds.
 
 omarchy-vm:
     vm:
