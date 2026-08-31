@@ -1163,6 +1163,10 @@ check-omarchy-desktop-vm:
             # `artifact_contains_text:`, the OCR modifier the screen_contains assertions
             # below need — plugin-wl#10 on top of sdk#201.
             - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1212'
+            # plugin-quickshell serves the `quickshell:` verb the shell-IPC steps below use.
+            # Same mechanism as plugin-wl above: nothing in this VM's image closure requires
+            # it, so it rides in through add_candy and the host check runner loads it.
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1637'
             # omarchy-autologin writes the sddm drop-in and restarts sddm. It is a CANDY,
             # not a plan step, because a deploy's run: steps are install-timeline steps:
             # `charly check live` runs verify-only and skips every mutating step, and a
@@ -1210,26 +1214,24 @@ check-omarchy-desktop-vm:
               id: omarchy-desktop-shell-ping
               context:
                   - runtime
-              # OMARCHY_PATH is prefixed per-command, deliberately. A deploy-level `env:`
-              # looks like the DRY answer and is NOT one: it is the DEPLOY's environment,
-              # not a check-step environment, so hoisting it there left every omarchy-shell
-              # step failing with "OMARCHY_PATH is not set" — 35 failures where 8 stood.
-              # Measured, then reverted; the repetition is the working form.
+              # `quickshell:` rather than a `command:` step, and the difference is not
+              # stylistic. omarchy-shell wraps `qs ipc`, which reports IPC-level failures —
+              # "Target not found.", "Function not found." — on STDOUT while exiting ZERO. As a
+              # command: step this assertion passed on the exit status alone, so it would have
+              # stayed green against a shell that had lost its ping handler entirely.
               #
-              # `omarchy-shell shell ping` is the shell's own IPC. Running a program and
-              # asserting it succeeds is what the `command:` verb is for; there is no
-              # charly verb for a desktop shell's control channel yet.
-              #
-              # OMARCHY_PATH is set explicitly because omarchy-shell hard-fails with
-              # "OMARCHY_PATH is not set" without it, and the guest only exports it through
-              # the bash rc chain (/usr/share/omarchy/default/bash/env-bootstrap, which the
-              # guest itself documents as the single source of truth). A charly command step
-              # is not a login shell, so it inherits nothing. /usr/share/omarchy is the value
-              # env-bootstrap falls back to on a production install — the dev-link override
-              # in /etc/omarchy.conf does not exist on a stock guest.
+              # The verb also removes the OMARCHY_PATH prefix these steps used to carry:
+              # omarchy-shell needs it because the guest exports it only through the bash rc
+              # chain and a charly step is not a login shell. Talking to `qs` directly skips
+              # the wrapper, so there is nothing to prefix — `config:` names the shell
+              # directory outright.
               eventually: 120s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell ping
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: ping
+
 
             - check: the background layer surface is mapped and on screen
               id: omarchy-desktop-background-onscreen
@@ -1344,8 +1346,12 @@ check-omarchy-desktop-vm:
               # matchers is the same assertion set and fails with the same specificity —
               # charly reports which matcher missed — while asking the shell once.
               eventually: 60s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell listPlugins
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: listPlugins
+
               stdout:
                   - contains: omarchy.audio
                   - contains: omarchy.background
@@ -1513,8 +1519,22 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.menu '{"menu":"root"}'
+              # shell.summon answers "ok" or "unknown" and exits ZERO either way, so exit
+              # status proves only that the IPC round-trip happened — not that anything
+              # opened. Measured on the live guest: `summon totally.bogus.plugin "{}"`
+              # prints "unknown" and exits 0. Every summon step below therefore asserts the
+              # ANSWER; without it all ten pass against a shell that opened nothing.
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.menu'
+                      - '{"menu":"root"}'
+
             - check: the root menu surface is mapped
               id: omarchy-menu-root-mapped
               context:
@@ -1576,8 +1596,17 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.weather
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.weather'
+                      - '{}'
+
             - check: the weather panel surface is mapped
               id: omarchy-panels-weather-mapped
               context:
@@ -1623,8 +1652,14 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.weather
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: hide
+                  args:
+                      - 'omarchy.weather'
+
             - check: the weather panel surface is gone
               id: omarchy-panels-weather-gone
               context:
@@ -1639,8 +1674,17 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.bluetooth
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.bluetooth'
+                      - '{}'
+
             - check: the bluetooth panel surface is mapped
               id: omarchy-panels-bluetooth-mapped
               context:
@@ -1716,8 +1760,17 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.network
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.network'
+                      - '{}'
+
             - check: the network panel surface is mapped
               id: omarchy-panels-network-mapped
               context:
@@ -1730,16 +1783,31 @@ check-omarchy-desktop-vm:
               id: omarchy-panels-network-hide
               context:
                   - runtime
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.network
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: hide
+                  args:
+                      - 'omarchy.network'
+
 
             - check: the audio panel opens
               id: omarchy-panels-audio-opens
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.audio
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.audio'
+                      - '{}'
+
             - check: the audio panel surface is mapped
               id: omarchy-panels-audio-mapped
               context:
@@ -1752,16 +1820,31 @@ check-omarchy-desktop-vm:
               id: omarchy-panels-audio-hide
               context:
                   - runtime
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.audio
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: hide
+                  args:
+                      - 'omarchy.audio'
+
 
             - check: the monitor panel opens
               id: omarchy-panels-monitor-opens
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.monitor
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.monitor'
+                      - '{}'
+
             - check: the monitor panel surface is mapped
               id: omarchy-panels-monitor-mapped
               context:
@@ -1774,8 +1857,14 @@ check-omarchy-desktop-vm:
               id: omarchy-panels-monitor-hide
               context:
                   - runtime
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell hide omarchy.monitor
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: hide
+                  args:
+                      - 'omarchy.monitor'
+
 
             - check: the guest has no battery, so the power panel is correctly unavailable
               id: omarchy-panels-power-no-battery
@@ -1804,8 +1893,17 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.emojis
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.emojis'
+                      - '{}'
+
             - check: the emoji picker surface is mapped
               id: omarchy-surfaces-emoji-mapped
               context:
@@ -1863,8 +1961,17 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.clipboard
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.clipboard'
+                      - '{}'
+
             - check: the clipboard surface is mapped
               id: omarchy-surfaces-clipboard-mapped
               context:
@@ -1923,8 +2030,17 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.menu '{"menu":"system"}'
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.menu'
+                      - '{"menu":"system"}'
+
             - check: the system menu surface is mapped
               id: omarchy-surfaces-sysmenu-mapped
               context:
@@ -2036,8 +2152,17 @@ check-omarchy-desktop-vm:
               context:
                   - runtime
               eventually: 30s
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell shell summon omarchy.reminders
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: shell
+                  function: summon
+                  args:
+                      - 'omarchy.reminders'
+                      - '{}'
+
             - check: the reminder surface is mapped
               id: omarchy-surfaces-reminders-mapped
               context:
@@ -2102,8 +2227,12 @@ check-omarchy-desktop-vm:
               id: omarchy-surfaces-notify-clear-first
               context:
                   - runtime
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell notifications dismissAll
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: notifications
+                  function: dismissAll
+
             - check: send a notification through the shell
               id: omarchy-surfaces-notify-send
               context:
@@ -2137,8 +2266,12 @@ check-omarchy-desktop-vm:
               id: omarchy-surfaces-notify-dismiss
               context:
                   - runtime
-              command:
-                  command: env OMARCHY_PATH=/usr/share/omarchy omarchy-shell notifications dismissAll
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: notifications
+                  function: dismissAll
+
             - check: the notification popup surface is gone
               id: omarchy-surfaces-notify-closed
               context:
@@ -2154,6 +2287,11 @@ check-omarchy-desktop-vm:
                   - runtime
               eventually: 30s
               command:
+                  # omarchy-menu, NOT quickshell:. This one stays a command: step on purpose:
+                  # omarchy-menu is a CLI that resolves the apps list and builds the payload
+                  # before calling the shell, so replacing it with a raw IPC call would assert
+                  # a different thing — the shell accepting a summon, rather than omarchy's own
+                  # launcher path working end to end.
                   command: env OMARCHY_PATH=/usr/share/omarchy omarchy-menu summon apps
             - check: the apps menu surface is mapped
               id: omarchy-surfaces-appsmenu-mapped
