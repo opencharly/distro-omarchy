@@ -1,0 +1,43 @@
+omarchy-suite-base-pr9343:
+    candy:
+        version: 2026.243.0000
+        description: |
+            The S2 PR-injection image: the suite-base image with PR #9343
+            (omacom/omarchy) applied at BUILD time via the omarchy-pr-9343 candy,
+            plus the declarative behavior check. The PR changes bin/omarchy-migrate
+            to fail --pending with exit 2 + "migrations directory missing" when the
+            migrations dir is absent (upstream main exits 1 silently). The check
+            passes ONLY with the PR applied — the injection proof. The check is
+            idempotent: the missing-dir path exits before any mutation.
+        base: omarchy-suite-base
+        build:
+            - pac
+        platform:
+            - linux/amd64
+        distro:
+            - omarchy
+            - arch
+        candy:
+            - omarchy-pr-9343
+        plan:
+            - check: migrate --pending fails closed when the migrations dir is missing
+              id: pr9343-migrate-pending-missing-dir
+              context:
+                - build
+              # The charly variant of the PR's own test
+              # (migrate-pending-missing-dir-test.sh), expressed DECLARATIVELY:
+              # the command verb asserts the exact exit code (2) and the stderr
+              # matcher asserts the message (the migrate script writes the message
+              # to stderr — gotcha 5). Upstream main exits 1 silently; the PR
+              # exits 2 with the message. Idempotent: the missing-dir path exits
+              # before any mutation. Build context: the check runs at charly
+              # check box against the built image in a disposable container.
+              # The step env: modifier (plugin-command#4) sets OMARCHY_PATH for
+              # the executed command — the charly way, no inline shell prefix.
+              env:
+                  OMARCHY_PATH: /tmp/missing-omarchy
+              command:
+                  command: /usr/share/omarchy/bin/omarchy-migrate --pending
+              exit_status: 2
+              stderr:
+                  - contains: migrations directory missing
