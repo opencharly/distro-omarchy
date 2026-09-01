@@ -16,6 +16,9 @@ charly-mise-consumer:
         plan:
             - run: install charly via the mise verb (OpEmit — the builder stage already provisioned mise and installed charly, so this is idempotent)
               mise: {command: use, tool: github:opencharly/charly@2026.244.0836}
+            - run: warm the --repo metadata cache (the first fetch of the large opencharly/charly repo exceeds the check never-hang bound; the build step is unbounded, so the runtime check reuses the warm cache)
+              command: charly --repo opencharly/charly box list boxes
+              run_as: user
             - check: charly resolves via the mise shims in the image
               id: charly-via-shims
               command: charly version
