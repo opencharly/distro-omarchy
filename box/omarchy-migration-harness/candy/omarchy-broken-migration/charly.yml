@@ -1,0 +1,27 @@
+omarchy-broken-migration:
+    candy:
+        version: 2026.243.0000
+        description: |
+            The S5 known-red fixture: installs a deliberately broken migration
+            (one that never creates its marker file, so it stays pending forever).
+            The migration-harness checks MUST FAIL against this image — proving
+            the harness catches a broken migration. Expected to fail by design;
+            the evidence is the run log.
+        plan:
+            - run: install the deliberately broken migration
+              id: install-broken-migration
+              command: |
+                  set -eu
+                  cat > /usr/share/omarchy/migrations/9999999999.sh <<'EOF'
+                  #!/bin/bash
+                  # Deliberately broken: never creates its marker, so it stays pending.
+                  echo "broken migration ran"
+                  EOF
+                  chmod +x /usr/share/omarchy/migrations/9999999999.sh
+            - check: the broken migration is installed
+              id: broken-migration-installed
+              context:
+                - build
+              file:
+                  file: /usr/share/omarchy/migrations/9999999999.sh
+                  exists: true
