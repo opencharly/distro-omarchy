@@ -15,7 +15,7 @@ charly-mise-consumer:
             - "@github.com/opencharly/plugin-mise/candy/plugin-mise:v2026.242.2133"
         plan:
             - run: install charly via the mise verb (OpEmit — the builder stage already provisioned mise and installed charly, so this is idempotent)
-              mise: {command: use, tool: github:opencharly/charly@2026.234.1727}
+              mise: {command: use, tool: github:opencharly/charly@2026.244.0836}
             - check: charly resolves via the mise shims in the image
               id: charly-via-shims
               command: charly version
