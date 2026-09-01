@@ -258,6 +258,49 @@ omarchy-vm:
             snippets:
                 - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
 
+
+check-omarchy-hybrid-gpu-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            The L3 dual-GPU hybrid bed: the virtio iGPU video beside a
+            passed-through NVIDIA dGPU in ONE bed. The host is pre-flipped
+            (charly vm gpu mode vfio); the deploy declares requires_exclusive:
+            [nvidia-gpu], and charly vm create auto-allocates the whole-IOMMU-
+            group hostdev (the RTX 4080 SUPER at 0000:01:00). The in-guest
+            omarchy-hw-hybrid-gpu detection must be TRUE and a full switch
+            cycle (bind/unbind, PCI runtime PM, compositor restart) must
+            complete.
+        requires_exclusive: [nvidia-gpu]
+        add_candy:
+            - '@github.com/opencharly/layer-nvidia:v2026.236.116'
+            - '@github.com/opencharly/plugin-omarchy/candy/plugin-omarchy:v2026.244.1401'
+        install_opts:
+            allow_root_tasks: true
+        plan:
+            - check: the omarchy hybrid-GPU detection is TRUE
+              id: omarchy-hybrid-gpu-detected
+              context:
+                - runtime
+              command: omarchy-hw-hybrid-gpu
+              exit_status: 0
+            - check: the passed-through NVIDIA GPU is visible in the guest
+              id: omarchy-nvidia-gpu-visible
+              context:
+                - runtime
+              command: lspci | grep -i nvidia
+              stdout:
+                  - contains: NVIDIA
+            - check: the omarchy verb reports the installed version
+              id: omarchy-version
+              context:
+                - runtime
+              omarchy:
+                  args: version
+              stdout:
+                  - matches: '^[0-9]+.[0-9]+.[0-9]+'
 check-omarchy-iso-vm:
     vm:
         from: omarchy-vm
