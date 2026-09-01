@@ -1,0 +1,29 @@
+omarchy-pr-red:
+    candy:
+        version: 2026.243.0000
+        description: |
+            The S2 known-red fixture: installs UPSTREAM MAIN's omarchy-migrate
+            (which exits 1 silently on a missing migrations dir) instead of PR
+            #9343's (which exits 2 with the message). The pr9343-migrate-pending-
+            missing-dir check MUST FAIL against this image, proving the check
+            surfaces a wrong change. Expected to fail by design; the evidence is
+            the run log.
+        plan:
+            - run: fetch upstream main's omarchy-migrate (the known-red fixture)
+              id: pr-apply
+              command: |
+                  set -eu
+                  rm -rf /tmp/pr-src
+                  git init -q /tmp/pr-src
+                  cd /tmp/pr-src
+                  git remote add origin https://github.com/omacom/omarchy
+                  git fetch -q --depth 1 origin quattro
+                  git checkout -q FETCH_HEAD
+                  cp bin/omarchy-migrate /usr/share/omarchy/bin/omarchy-migrate
+            - check: the fixture's omarchy-migrate is installed
+              id: pr-applied
+              context:
+                - build
+              file:
+                  file: /usr/share/omarchy/bin/omarchy-migrate
+                  exists: true

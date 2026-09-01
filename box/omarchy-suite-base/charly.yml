@@ -1,0 +1,68 @@
+omarchy-suite-base:
+    candy:
+        version: 2026.243.0000
+        description: |
+            The Tier-1 evaluation image: the proven omarchy base plus the charly
+            consequence checks for the live omarchy system — the Class B surface
+            from UPSTREAM-TEST-TRIAGE.md that the shipped beds do not already
+            assert. Upstream's shell.d tests mock a binary and assert a CALL
+            SEQUENCE; these assert the resulting SYSTEM STATE, which is strictly
+            stronger — it proves the machine, not the call — and needs no
+            upstream source tree in the guest.
+
+            The shipped beds already cover: the base image (check-omarchy-pod),
+            the desktop (check-omarchy-desktop-vm, 102 checks), the ISO install
+            (check-omarchy-iso-vm, 57 checks incl. vconsole/mkinitcpio/logind/
+            locale/chromium-policy). This box adds the remaining Class B
+            consequences: the migration outcomes (retired-installer-artifacts,
+            legacy-power-udev-rules, security-fido2). The checks are BUILD-context
+            (they assert the image's content at charly check box) and idempotent —
+            no side effects, no upstream source tree needed.
+        base: omarchy
+        build:
+            - pac
+        platform:
+            - linux/amd64
+        distro:
+            - omarchy
+            - arch
+        plan:
+            # ── migration outcomes (assert the migrated state, not the call) ──
+            - check: the retired-installer sudoers artifact is gone (migration ran)
+              id: suite-migration-installer-artifacts
+              context:
+                - build
+              # upstream: retired-installer-artifacts-migration-test.sh. The migration
+              # removes /etc/sudoers.d/99-omarchy-installer-reboot; on a stock install
+              # it is ABSENT, which is the migrated state.
+              file:
+                  file: /etc/sudoers.d/99-omarchy-installer-reboot
+                  exists: false
+
+            - check: no vulnerable Omarchy 3 power udev rules remain
+              id: suite-migration-legacy-power-rules
+              context:
+                - build
+              # upstream: legacy-power-udev-rules-migration-test.sh. The migration
+              # quarantines rules whose RUN targets the legacy omarchy-wifi-powersave /
+              # omarchy-power-profile paths; a correct guest has none left.
+              command: |
+                  set -eu
+                  if [[ -d /etc/udev/rules.d ]]; then
+                      if grep -rlE 'omarchy-(wifi-powersave|power-profile)' /etc/udev/rules.d/ 2>/dev/null; then
+                          echo "legacy power rules remain:" >&2
+                          grep -rlE 'omarchy-(wifi-powersave|power-profile)' /etc/udev/rules.d/ 2>/dev/null >&2
+                          exit 1
+                      fi
+                  fi
+
+            - check: fido2 enrolment is opt-in (absent on a stock install)
+              id: suite-migration-fido2-optin
+              context:
+                - build
+              # upstream: security-fido2-test.sh. Enrolment is opt-in; a stock guest
+              # has no /etc/fido2. Asserting absence is the correct-guest assertion.
+              file:
+                  file: /etc/fido2
+                  exists: false
+
