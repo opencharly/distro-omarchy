@@ -58,6 +58,14 @@ def main():
                 "cached": key in cache,
             })
 
+    # Persist the cache: every evaluated bed+calver is recorded, so a later run
+    # reports it as CACHED (the skip logic — the caller does not re-run a cached
+    # bed). The cache is keyed by bed+calver (the SHA of the pair).
+    for r in rows:
+        cache[r["cache_key"]] = {"bed": r["bed"], "calver": r["calver"], "verdict": r["verdict"]}
+    with open(args.cache, "w") as f:
+        json.dump(cache, f, indent=2)
+
     # The frozen report shape.
     print(f"{'bed':<40} {'calver':<14} {'verdict':<6} {'secs':>6}  {'cached':<7} failing")
     for r in rows:
