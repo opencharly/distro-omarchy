@@ -3,16 +3,19 @@ charly-mise-consumer:
         version: 2026.242.0000
         description: |-
             Consumer candy for the check-charly-mise omarchy bed. SHIPS a mise.toml
-            declaring github:opencharly/charly (pinned CalVer) and selects the mise
-            builder explicitly (external_builder: mise): the builder STAGE installs
-            charly via the mise GitHub backend — version resolve, release asset
-            download, install, reshim — and the artifacts (installs + shims + config)
-            land in the image. The image-level checks prove charly resolves via the
-            shims; the pod plan proves the runtime claims.
-        external_builder: mise
+            declaring github:opencharly/charly (pinned CalVer) so the embedded
+            builder: mise: vocabulary's detect_file auto-triggers the mise builder
+            (DETECTION path): the builder STAGE installs charly via the mise GitHub
+            backend — version resolve, release asset download, install, reshim — and
+            the artifacts (installs + shims + config) land in the image. The run step
+            re-runs the install through the mise VERB (idempotent — the version is
+            already installed by the stage); the checks prove charly resolves via the
+            shims in the image.
         bake_plugin:
             - "@github.com/opencharly/plugin-mise/candy/plugin-mise:v2026.242.2133"
         plan:
+            - run: install charly via the mise verb (OpEmit — the builder stage already provisioned mise and installed charly, so this is idempotent)
+              mise: {command: use, tool: github:opencharly/charly@2026.234.1727}
             - check: charly resolves via the mise shims in the image
               id: charly-via-shims
               command: charly version
