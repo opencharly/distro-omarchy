@@ -71,3 +71,49 @@ omarchy:
                   grep -q '^ID_LIKE=arch$' /etc/os-release
                   pacman-conf --repo omarchy Server | grep -q 'pkgs\.omarchy\.org'
                   pacman -Q omarchy >/dev/null
+
+
+# ── the charly-via-mise bed (check-charly-mise-pod) ─────────────────────────────
+# The dedicated Omarchy bed proving the FULL mise installation of charly on the
+# REAL Omarchy image. The consumer candy ships a mise.toml declaring
+# github:opencharly/charly → the embedded builder: mise: vocabulary's detect_file
+# auto-triggers the mise builder (DETECTION path); the builder STAGE installs
+# charly via the mise GitHub backend (version resolve → release asset download →
+# install → reshim) and the artifacts land in the image. The pod plan proves
+# charly works at runtime.
+#
+# The builder box MUST be local: the builder map resolves stage bases only from
+# the project's own box registry (BuilderRefForFormat → g.Boxes), so a remote
+# @github.com/... ref would not resolve. It bases on the REAL omarchy box (the
+# whole image chain is Omarchy) and gets its curl+tar toolchain from the shared
+# plugin-mise curl-tar candy (R3: one canonical implementation).
+charly-mise-builder:
+    candy:
+        version: 2026.242.0000
+        base: omarchy
+        build:
+            - pac
+        platform:
+            - linux/amd64
+        candy:
+            - '@github.com/opencharly/plugin-mise/candy/curl-tar:v2026.242.2133'
+        description: |-
+            Omarchy stage base for the mise builder (curl+tar toolchain) — based on the
+            REAL omarchy box so the whole check-charly-mise image chain is Omarchy. The
+            curl+tar toolchain comes from the shared plugin-mise curl-tar candy; the box
+            itself is local because the builder map resolves stage bases only from the
+            project's own box registry.
+
+check-charly-mise:
+    candy:
+        version: 2026.242.0000
+        base: omarchy
+        builder:
+            mise: charly-mise-builder
+        candy:
+            - charly-mise-consumer
+        description: |-
+            The check-charly-mise image: the REAL omarchy box plus the charly-mise-consumer
+            candy, whose mise.toml auto-triggers the mise builder (detection path). The
+            builder stage installs charly via mise (GitHub backend) and the artifacts
+            (installs + shims + config) land in the image.

@@ -2601,3 +2601,36 @@ check-omarchy-suite-pod-red:
             check surfaces a wrong change per-check. Expected to FAIL by design;
             the evidence is the run log.
 
+
+check-charly-mise-pod:
+    pod:
+        image: check-charly-mise
+        disposable: true
+        lifecycle: dev
+        description: >-
+            The dedicated Omarchy bed proving the FULL mise installation of charly on the
+            real Omarchy image. The consumer's mise.toml declares github:opencharly/charly
+            (pinned CalVer); the mise builder installs it in-stage via the GitHub backend
+            (version resolve, release asset download, install, reshim); the runtime
+            checks prove charly resolves via the shims, prints a CalVer, shows in mise ls,
+            runs via mise x, and executes a real charly command (--repo box list boxes).
+        plan:
+            - check: charly resolves via the mise shims in the running pod
+              id: pod-charly-via-shims
+              command: charly version
+            - check: charly version prints a CalVer build stamp
+              id: pod-charly-calver
+              command: charly version
+              stdout:
+                - matches: '[0-9]{4}\.[0-9]+'
+            - check: mise ls shows charly installed
+              id: pod-mise-ls-charly
+              command: mise ls
+              stdout:
+                - contains: "charly"
+            - check: mise x runs charly
+              id: pod-mise-x-charly
+              command: mise x -- charly version
+            - check: charly --repo runs a real command (the documented usage)
+              id: pod-charly-repo
+              command: charly --repo opencharly/charly box list boxes
