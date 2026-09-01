@@ -1,0 +1,37 @@
+omarchy-migration-harness-red:
+    candy:
+        version: 2026.243.0000
+        description: |
+            The S5 known-red image: the migration harness with a deliberately
+            broken migration installed (omarchy-broken-migration — a migration
+            that never creates its marker, so it stays pending forever). The
+            migrate-no-pending check MUST FAIL — proving the harness catches a
+            broken migration. Expected to fail by design.
+        base: omarchy-migration-harness
+        build:
+            - pac
+        platform:
+            - linux/amd64
+        distro:
+            - omarchy
+            - arch
+        candy:
+            - omarchy-broken-migration
+        plan:
+            - check: no migrations remain pending after the build-time run
+              id: migrate-no-pending
+              context:
+                - build
+              # With the broken migration installed (never creates its marker),
+              # omarchy-migrate --pending exits 0 (it stays pending) — this check
+              # MUST FAIL, proving the harness catches a broken migration.
+              command:
+                  command: omarchy-migrate --pending
+              exit_status: 1
+            - check: a second migrate run is a no-op
+              id: migrate-idempotent
+              context:
+                - build
+              command:
+                  command: omarchy-migrate
+              exit_status: 0

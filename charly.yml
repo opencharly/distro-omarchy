@@ -2634,3 +2634,67 @@ check-charly-mise-pod:
             - check: charly --repo runs a real command (the documented usage)
               id: pod-charly-repo
               command: charly --repo opencharly/charly box list boxes
+# ── Tier-2 PR-injection bed (S3) ────────────────────────────────────────────────
+# The VM PR-injection seam: derives from the shipped omarchy-vm template (the
+# faithful unattended ISO install) and applies PR #9343 at DEPLOY time via the
+# omarchy-pr-9343 candy (add_candy — candies run at deploy time, as root, the
+# same mechanism the desktop-vm bed uses for omarchy-autologin). The declarative
+# check (runtime context, env: modifier) asserts the PR's behavior: migrate
+# --pending with a missing migrations dir exits 2 + "migrations directory
+# missing" (upstream main exits 1 silently). Measures the install wall-clock for
+# the §5.2 economics (fresh ISO install ≈ 20-30 min).
+check-omarchy-pr-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        add_candy:
+            - omarchy-pr-9343
+        plan:
+            - check: migrate --pending fails closed when the migrations dir is missing
+              id: pr9343-migrate-pending-missing-dir
+              context:
+                - runtime
+              env:
+                  OMARCHY_PATH: /tmp/missing-omarchy
+              command:
+                  command: /usr/share/omarchy/bin/omarchy-migrate --pending
+              exit_status: 2
+              stderr:
+                  - contains: migrations directory missing
+        description: >-
+            S3 VM PR-injection proof: the shipped omarchy-vm template with PR
+            #9343 applied at deploy time via the omarchy-pr-9343 candy, plus the
+            declarative behavior check (migrate --pending exits 2 with the message
+            when the migrations dir is absent). Measures the install wall-clock
+            for the §5.2 economics.
+
+
+
+# ── Tier-1 migration idempotence bed (S5) ─────────────────────────────────────
+# The migration harness: builds omarchy-migration-harness (applies all pending
+# migrations at build time) and asserts the idempotence (no pending after the
+# build-time run; a second run is a no-op). The red variant
+# (check-omarchy-migration-harness-red) installs a deliberately broken
+# migration — the harness must catch it (it stays pending).
+check-omarchy-migration-harness:
+    pod:
+        image: omarchy-migration-harness
+        disposable: true
+        lifecycle: dev
+        description: >-
+            S5 migration idempotence harness: applies all pending omarchy
+            migrations at build time and asserts no migrations remain pending
+            (omarchy-migrate --pending exits 1) and a second run is a no-op
+            (exit 0). The checks are build-context and idempotent.
+
+check-omarchy-migration-harness-red:
+    pod:
+        image: omarchy-migration-harness-red
+        disposable: true
+        lifecycle: dev
+        description: >-
+            S5 known-red fixture: the migration harness with a deliberately
+            broken migration (never creates its marker). The migrate-no-pending
+            check MUST FAIL — proving the harness catches a broken migration.
+            Expected to FAIL by design; the evidence is the run log.

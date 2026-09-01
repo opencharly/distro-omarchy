@@ -1,0 +1,41 @@
+omarchy-migration-harness:
+    candy:
+        version: 2026.243.0000
+        description: |
+            The S5 migration idempotence harness: applies all pending omarchy
+            migrations at BUILD time (a candy run step — the install timeline, as
+            root) and asserts the idempotence: no migrations remain pending after
+            the build-time run (omarchy-migrate --pending exits 1), and a second
+            migrate run is a no-op (exit 0). The deliberately broken migration
+            variant (omarchy-migration-harness-red) adds a migration that never
+            creates its marker — the harness catches it (it stays pending).
+        base: omarchy
+        build:
+            - pac
+        platform:
+            - linux/amd64
+        distro:
+            - omarchy
+            - arch
+        plan:
+            - run: apply all pending migrations at build time
+              id: migrate-apply
+              command: |
+                  set -eu
+                  omarchy-migrate
+            - check: no migrations remain pending after the build-time run
+              id: migrate-no-pending
+              context:
+                - build
+              # omarchy-migrate --pending exits 1 when nothing is pending (the
+              # idempotence proof: the build-time run applied every migration).
+              command:
+                  command: omarchy-migrate --pending
+              exit_status: 1
+            - check: a second migrate run is a no-op
+              id: migrate-idempotent
+              context:
+                - build
+              command:
+                  command: omarchy-migrate
+              exit_status: 0
