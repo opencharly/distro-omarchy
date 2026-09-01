@@ -1,0 +1,36 @@
+charly-mise-consumer:
+    candy:
+        version: 2026.242.0000
+        description: |-
+            Consumer candy for the check-charly-mise omarchy bed. SHIPS a mise.toml
+            declaring github:opencharly/charly (pinned CalVer) so the embedded
+            builder: mise: vocabulary's detect_file auto-triggers the mise builder
+            (DETECTION path): the builder STAGE installs charly via the mise GitHub
+            backend — version resolve, release asset download, install, reshim — and
+            the artifacts (installs + shims + config) land in the image. The run step
+            re-runs the install through the mise VERB (idempotent — the version is
+            already installed by the stage); the checks prove charly resolves via the
+            shims in the image.
+        # The pod's image needs go: the dev/worktree charly binary's compiled-in closure
+        # includes the charly project's fixture plugins (plugin-example-structkind), which
+        # are built from source at connect time — without go the connect fails with a
+        # surviving gate warning. The bed does not use the fixture kind; go is present only
+        # so the connect succeeds and the gate is warning-free.
+        package:
+            - go
+        bake_plugin:
+            - "@github.com/opencharly/plugin-mise/candy/plugin-mise:v2026.242.2133"
+        plan:
+            - run: install charly via the mise verb (OpEmit — the builder stage already provisioned mise and installed charly, so this is idempotent)
+              mise: {command: use, tool: github:opencharly/charly@2026.244.0836}
+            - run: warm the --repo metadata cache (the first fetch of the large opencharly/charly repo exceeds the check never-hang bound; the build step is unbounded, so the runtime check reuses the warm cache)
+              command: charly --repo opencharly/charly box list boxes
+              run_as: user
+            - check: charly resolves via the mise shims in the image
+              id: charly-via-shims
+              command: charly version
+            - check: charly version prints a CalVer build stamp
+              id: charly-calver
+              command: charly version
+              stdout:
+                - matches: '[0-9]{4}\.[0-9]+'
