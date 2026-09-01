@@ -2720,6 +2720,14 @@ check-omarchy-pr-vm-visual:
         install_opts:
             allow_root_tasks: true
         plan:
+            - check: the omarchy shell's bar surface is mapped and on screen
+              id: visual-desktop-up
+              context:
+                - runtime
+              eventually: 120s
+              wl: hypr-layers
+              stdout:
+                  - matches: 'omarchy-bar\s.*\sonscreen'
             - check: the desktop renders a non-uniform screenshot
               id: visual-capture
               context:
