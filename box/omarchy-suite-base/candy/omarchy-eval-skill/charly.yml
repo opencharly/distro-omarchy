@@ -1,0 +1,64 @@
+omarchy-eval-skill:
+    skill:
+        name: omarchy-eval
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The omarchy PR evaluation procedure — the charly-driven pipeline for
+            evaluating omacom/omarchy PRs on disposable beds, using charly checks
+            (not the upstream shell scripts) to assert the live omarchy system.
+            MUST be invoked when evaluating an omarchy PR, running the omarchy
+            evaluation beds (check-omarchy-suite-pod, check-omarchy-pr-vm,
+            check-omarchy-pr-vm-visual), or grading omarchy visual changes.
+        content: |-
+            # /omarchy-eval:omarchy-pr-check
+
+            Evaluate an omacom/omarchy PR with charly checks on disposable beds.
+            The checks assert the resulting SYSTEM STATE (charly consequence
+            checks), not upstream's mocked call sequences — strictly stronger.
+
+            ## The beds
+
+            - `check-omarchy-suite-pod` — Tier-1 pod: the omarchy base + the
+              migration-outcome checks (retired-installer sudoers artifact absent,
+              no legacy power udev rules, fido2 opt-in absent). Build context.
+            - `check-omarchy-suite-pod-pr9343` — Tier-1 PR injection: the PR's
+              files applied at BUILD time via a per-PR candy (candy run steps
+              emit as Containerfile RUN, as root); the declarative check asserts
+              the PR's behavior (e.g. omarchy-migrate --pending exits 2 with the
+              message when the migrations dir is absent).
+            - `check-omarchy-pr-vm` — Tier-2 VM PR injection: the shipped
+              omarchy-vm template + the PR candy via add_candy (deploy time).
+            - `check-omarchy-pr-vm-visual` — Tier-2 visual evidence loop: the
+              desktop + a wl: screenshot capture + an agent-check step grading
+              the visual against the visual-verification.md rubric (ADE).
+
+            ## The procedure
+
+            1. Load the rubric: omarchy's agents/skills (acceptance-tests,
+               visual-verification, migrations, shell-dev, install-scripts,
+               command-metadata, icon-font, hyprland, capture) — vendored and
+               pinned at a quattro hash so evaluation criteria are version-locked.
+            2. Tier 0: classify the diff (the §3 map) and assign a venue;
+               extract the PR's "## Verification" claim; hardware-bound classes
+               get PARTIAL/NOT-EVALUABLE, never a faked bed.
+            3. Tier 1: `charly check run check-omarchy-suite-pod` (or the
+               PR-variant bed) — the suite pod's charly checks.
+            4. Tier 2 (by class): `charly check run check-omarchy-pr-vm` /
+               `check-omarchy-pr-vm-visual` — the VM PR injection + visual
+               evidence loop.
+            5. Evidence contract: the check-run summary.yml + the screenshot
+               artifact + the ADE verdict (charly check feature run --agent).
+            6. Render the §4.2 validation comment from the results; POST only
+               behind the operator approval gate.
+            7. Batch loop: repeated bed runs, one per PR, with the SHA-keyed
+               result cache (scripts/omarchy-rollup.py) skipping unchanged heads.
+
+            ## Guardrails (from doctrine)
+
+            - Never let an ADE/iteration loop rewrite widget QML wholesale
+              (shell-dev.md glyph loss).
+            - Migrations double-run (the S5 harness proves idempotence).
+            - Assert the SERVES not the RUNS (quickshell: ping reads responses;
+              a supervisor uptime can pass on a wait wrapper).
+            - PR-body claims are claims, not facts.
