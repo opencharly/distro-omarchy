@@ -1,0 +1,30 @@
+omarchy-pr-9345:
+    candy:
+        version: 2026.243.0000
+        description: |
+            Applies PR #9345 (omacom/omarchy) to the omarchy system at BUILD time:
+            fetches the PR head and installs its changed files over the installed
+            tree. The PR changes shell/Ui/PanelSlider.qml (the slider knob reaching
+            the track end — a visual change). A candy's run steps are the install
+            timeline — they emit as Containerfile RUN directives (as root), so the
+            PR's files land in the image once, and the checks that follow are
+            idempotent state/behavior assertions with no side effects.
+        plan:
+            - run: fetch PR #9345's head and install its changed files
+              id: pr-apply
+              command: |
+                  set -eu
+                  rm -rf /tmp/pr-src
+                  git init -q /tmp/pr-src
+                  cd /tmp/pr-src
+                  git remote add origin https://github.com/omacom/omarchy
+                  git fetch -q --depth 1 origin pull/9345/head
+                  git checkout -q FETCH_HEAD
+                  cp shell/Ui/PanelSlider.qml /usr/share/omarchy/shell/Ui/PanelSlider.qml
+            - check: the PR's PanelSlider.qml is installed
+              id: pr-applied
+              context:
+                - build
+              file:
+                  file: /usr/share/omarchy/shell/Ui/PanelSlider.qml
+                  exists: true

@@ -82,7 +82,7 @@ check-omarchy-cstream-pod:
             # WITHOUT these pins the steps do not fail: they SKIP as an unknown verb, and a
             # skipped step reads as not-failed in the summary. Every assertion below would
             # then assert nothing while the bed reported green.
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1212'
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
             - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1942'
         plan:
             # ── the GUI subset, mirroring check-omarchy-desktop-vm ───────────────────────
@@ -1333,7 +1333,7 @@ check-omarchy-desktop-vm:
             # fact succeeded — plugin-wl#9. v2026.243.1212 adds
             # `artifact_contains_text:`, the OCR modifier the screen_contains assertions
             # below need — plugin-wl#10 on top of sdk#201.
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1212'
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
             # plugin-quickshell serves the `quickshell:` verb the shell-IPC steps below use.
             # Same mechanism as plugin-wl above: nothing in this VM's image closure requires
             # it, so it rides in through add_candy and the host check runner loads it.
@@ -2665,3 +2665,60 @@ check-omarchy-migration-harness-red:
             broken migration (never creates its marker). The migrate-no-pending
             check MUST FAIL — proving the harness catches a broken migration.
             Expected to FAIL by design; the evidence is the run log.
+
+
+# ── Tier-2 visual evidence-loop bed (S4) ───────────────────────────────────────
+# The evidence loop end-to-end on a real visual PR (#9345 — the slider knob
+# reaching the track end, a QML change). Derives from the shipped omarchy-vm
+# template + the omarchy-autologin candy (the desktop), applies PR #9345 at
+# deploy time via the omarchy-pr-9345 candy, captures a desktop screenshot (wl:
+# screenshot), and grades it with an agent-check step against the
+# visual-verification.md rubric (ADE — opt-in via charly check feature run).
+check-omarchy-pr-vm-visual:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        add_candy:
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
+            - omarchy-autologin
+            - omarchy-pr-9345
+        install_opts:
+            allow_root_tasks: true
+        plan:
+            - check: the desktop renders a non-uniform screenshot
+              id: visual-capture
+              context:
+                - runtime
+              eventually: 120s
+              timeout: 5m
+              wl:
+                  method: screenshot
+                  artifact: /tmp/omarchy-desktop.png
+                  artifact_min_bytes: 10000
+                  artifact_not_uniform: true
+            - agent-check: the slider knob reaches the track end (visual-verification.md rubric)
+              id: visual-grade
+        description: >-
+            S4 visual evidence loop: the shipped omarchy-vm template with PR
+            #9345 applied (the slider knob QML change), a wl: screenshot capture
+            (artifact /tmp/omarchy-desktop.png), and an agent-check step grading
+            the visual against the visual-verification.md rubric (ADE, opt-in via
+            charly check feature run). The JSON verdict with artifact paths is the
+            evidence contract.
+
+
+
+# ── ADE grader agent (S4) ───────────────────────────────────────────────────────
+# The agent-check grader: Claude Code headless (-p), spawned by charly check
+# feature run to grade prose-only steps against the live deployment.
+ade-grader:
+    agent:
+        description: The ADE visual grader (Claude Code headless)
+        command:
+            - claude
+            - -p
+            - ${PROMPT}
+        prompt_via: argv
+        timeout: 10m
+
