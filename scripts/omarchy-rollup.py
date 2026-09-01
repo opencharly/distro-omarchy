@@ -7,7 +7,7 @@ result is already in the cache (keyed by bed+calver) is reported as CACHED and
 not re-run by the caller.
 
 Report shape (frozen):
-  bed | calver | verdict | total_seconds | failing_steps | cached
+  bed | calver | verdict | secs | cached | failing
 
 Usage: omarchy-rollup.py <check-root> [--cache FILE]
 """
