@@ -1014,6 +1014,9 @@ check-charly-omarchy-vm:
             enable its units in a guest whose pacman is pinned to Omarchy's own frozen
             mirror snapshot — none of which is possible without the passwordless sudo
             established at prepare-venue for source.kind: iso.
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
         install_opts:
