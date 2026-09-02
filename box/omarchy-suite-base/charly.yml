@@ -26,6 +26,9 @@ omarchy-suite-base:
         distro:
             - omarchy
             - arch
+        candy:
+            - '@github.com/opencharly/layer-tmux:v2026.240.0202'
+            - '@github.com/opencharly/layer-asciinema:v2026.240.0119'
         plan:
             # ── migration outcomes (assert the migrated state, not the call) ──
             - check: the retired-installer sudoers artifact is gone (migration ran)
