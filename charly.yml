@@ -277,6 +277,9 @@ check-omarchy-hybrid-gpu-vm:
         add_candy:
             - '@github.com/opencharly/layer-nvidia:v2026.236.116'
             - '@github.com/opencharly/plugin-omarchy/candy/plugin-omarchy:v2026.244.1401'
+            # auto-login: every check VM must reach a working desktop unattended
+            # and keep recordings/screenshots on the logged-in session.
+            - omarchy-autologin
         install_opts:
             allow_root_tasks: true
         plan:
@@ -1062,6 +1065,9 @@ check-charly-omarchy-vm:
             keep_venue: true
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            # auto-login: this bed proves the toolchain deploy, and the desktop
+            # must also come up unattended (recordings/screenshots show it).
+            - omarchy-autologin
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -2697,6 +2703,9 @@ check-omarchy-pr-vm:
         lifecycle: dev
         add_candy:
             - omarchy-pr-9343
+            # auto-login: every check VM reaches the desktop unattended (no human
+            # at the sddm greeter) — screenshots/recordings show the session.
+            - omarchy-autologin
         plan:
             - check: migrate --pending fails closed when the migrations dir is missing
               id: pr9343-migrate-pending-missing-dir
