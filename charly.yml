@@ -1126,7 +1126,7 @@ charly-omarchy-dev:
               command: omarchy-channel-set dev
             - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
               id: dev-checkout-omarchy
-              command: sh -c 'u="$(getent passwd 1000 | sed 's/:.*//')" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
+              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
             - run: update to the channel head (piped answers, time-boxed)
               id: channel-update-dev
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
@@ -1237,7 +1237,7 @@ check-charly-omarchy-dev-vm:
               command: omarchy-channel-set dev
             - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
               id: dev-checkout-omarchy
-              command: sh -c 'u="$(getent passwd 1000 | sed 's/:.*//')" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
+              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
             - run: update to the channel head (piped answers, time-boxed)
               id: channel-update-dev
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
