@@ -1037,6 +1037,220 @@ charly-omarchy:
             # rather than failing on a section this distro cannot use.
             skip_incompatible: true
 
+# The four update-channel keepers (stable = existing charly-omarchy; rc/edge/dev below)
+# One readily-available base VM per omarchy channel (omarchy.org/manual/updates/), each
+# deriving from the omarchy-vm ISO template with the charly toolchain + auto-login and a
+# clean golden snapshot (on_finalize: golden + keep_venue) as the lane revert target.
+# Lane mechanics + measured findings live in eval/PR-EVAL-LANE.md (opencharly/eval-omarchy).
+# UPDATE-INPUTS: omarchy update -y is measured NOT fully scriptable (stalls at the orphan
+# review) — bootstrap updates pipe 'y' answers and are time-boxed.
+# ASSERTION SCOPING: the round-trip checks assert EXIT CODE ONLY; exact stdout semantics
+# and the pacman -Syu guard are to-be-measured on the first live keeper build.
+charly-omarchy-rc:
+    vm:
+        from: omarchy-vm
+        lifecycle: dev
+        description: >-
+            RC-channel keeper: the stable ISO base switched to rc via omarchy-channel-set
+            + omarchy update (final validation before major releases). Lane-owned; clean
+            golden snapshot; auto-login composed (unattended desktop for visual/recorded
+            eval steps).
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the rc channel
+              id: channel-switch-rc
+              command: omarchy-channel-set rc
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-rc
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+            - check: setting rc again is a no-op (round-trip, exit-code only)
+              id: channel-roundtrip-rc
+              context: [runtime]
+              command: omarchy-channel-set rc
+
+charly-omarchy-edge:
+    vm:
+        from: omarchy-vm
+        lifecycle: dev
+        description: >-
+            Edge-channel keeper: the stable ISO base switched to edge (latest development
+            builds + Arch packages) via omarchy-channel-set + omarchy update. Lane-owned;
+            clean golden snapshot; auto-login composed.
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the edge channel
+              id: channel-switch-edge
+              command: omarchy-channel-set edge
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-edge
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+            - check: setting edge again is a no-op (round-trip, exit-code only)
+              id: channel-roundtrip-edge
+              context: [runtime]
+              command: omarchy-channel-set edge
+
+charly-omarchy-dev:
+    vm:
+        from: omarchy-vm
+        lifecycle: dev
+        description: >-
+            Dev-channel keeper: the OS is bound to a git checkout of the omarchy source
+            in ~/omarchy (dev-channel semantics) + edge packages. The PRIMARY upstream-code
+            lane: a PR is applied by checking out its head in ~/omarchy. Lane-owned; clean
+            golden snapshot; auto-login.
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the dev channel
+              id: channel-switch-dev
+              command: omarchy-channel-set dev
+            - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
+              id: dev-checkout-omarchy
+              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-dev
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+            - check: setting dev again is a no-op (round-trip, exit-code only)
+              id: channel-roundtrip-dev
+              context: [runtime]
+              command: omarchy-channel-set dev
+
+
+check-charly-omarchy-rc-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        description: >-
+            The RC keeper's disposable twin: fresh ISO install + channel bootstrap
+            (omarchy-channel-set rc + update) + the charly toolchain + auto-login,
+            with on_finalize golden + keep_venue — the lane's clean-snapshot base
+            for the RC channel (same pattern as check-charly-omarchy-vm).
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the rc channel
+              id: channel-switch-rc
+              command: omarchy-channel-set rc
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-rc
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+            - check: setting rc again is a no-op (round-trip, exit-code only)
+              id: channel-roundtrip-rc
+              context: [runtime]
+              command: omarchy-channel-set rc
+            - check: charly is on PATH in the guest and runs
+              id: charly-omarchy-cli-present
+              context: [runtime]
+              command: charly --version 2>&1 | head -5
+              stdout: [{contains: OpenCharly}]
+
+check-charly-omarchy-edge-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        description: >-
+            The Edge keeper's disposable twin: fresh ISO install + channel bootstrap
+            (omarchy-channel-set edge + update) + the charly toolchain + auto-login,
+            with on_finalize golden + keep_venue — the lane's clean-snapshot base
+            for the edge channel.
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the edge channel
+              id: channel-switch-edge
+              command: omarchy-channel-set edge
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-edge
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+            - check: setting edge again is a no-op (round-trip, exit-code only)
+              id: channel-roundtrip-edge
+              context: [runtime]
+              command: omarchy-channel-set edge
+            - check: charly is on PATH in the guest and runs
+              id: charly-omarchy-cli-present
+              context: [runtime]
+              command: charly --version 2>&1 | head -5
+              stdout: [{contains: OpenCharly}]
+
+check-charly-omarchy-dev-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        description: >-
+            The Dev keeper's disposable twin: fresh ISO install + dev-channel
+            bootstrap (omarchy-channel-set dev + the ~/omarchy source checkout + a
+            piped, time-boxed update) + the charly toolchain + auto-login, with
+            on_finalize golden + keep_venue — the lane's clean-snapshot base for the
+            dev channel (the PRIMARY upstream-code lane).
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the dev channel
+              id: channel-switch-dev
+              command: omarchy-channel-set dev
+            - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
+              id: dev-checkout-omarchy
+              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-dev
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+            - check: setting dev again is a no-op (round-trip, exit-code only)
+              id: channel-roundtrip-dev
+              context: [runtime]
+              command: omarchy-channel-set dev
+            - check: charly is on PATH in the guest and runs
+              id: charly-omarchy-cli-present
+              context: [runtime]
+              command: charly --version 2>&1 | head -5
+              stdout: [{contains: OpenCharly}]
+
 # ── the disposable twin ──────────────────────────────────────────────────────────
 # It derives from the TEMPLATE, not from charly-omarchy: a bed's `from:` names a
 # kind: vm entity, and charly-omarchy is itself a deploy. Same add_candy and same
