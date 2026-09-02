@@ -1077,7 +1077,8 @@ charly-omarchy-rc:
             - check: setting rc again is a no-op (round-trip, exit-code only)
               id: channel-roundtrip-rc
               context: [runtime]
-              command: omarchy-channel-set rc
+              command: timeout 600 omarchy-channel-set rc
+              timeout: 10m
               env:
                   OMARCHY_PATH: /usr/share/omarchy
 
@@ -1188,7 +1189,8 @@ check-charly-omarchy-rc-vm:
             - check: setting rc again is a no-op (round-trip, exit-code only)
               id: channel-roundtrip-rc
               context: [runtime]
-              command: omarchy-channel-set rc
+              command: timeout 600 omarchy-channel-set rc
+              timeout: 10m
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: charly is on PATH in the guest and runs
