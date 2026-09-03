@@ -226,6 +226,17 @@ omarchy-vm:
                 locale: en_US.UTF-8
                 disk: /dev/vda
                 encrypt: false
+                # answer carries the per-distro extras the common installer fields do
+                # not model (the InstallerSeedContext.answer map). The omarchy
+                # user_configuration.json template renders these into the archinstall
+                # JSON — custom_commands is the auto-install hook that delivers sshd +
+                # the firewall port (a stock Omarchy install ships openssh disabled and
+                # ufw default deny incoming), replicating what omarchy's own harness
+                # (omarchy-iso-test bootstrap_ssh) runs manually, through the
+                # auto-install path instead. The manual's authorized_keys path is
+                # unchanged and preserved alongside.
+                answer:
+                    custom_commands: '["systemctl enable sshd", "ufw allow 22/tcp"]'
                 # ssh_authorized_key is deliberately ABSENT: it defaults to the public
                 # half of ssh.key_source: generate below. That default is what makes the
                 # guest reachable at all — a stock Omarchy install ships openssh with the
@@ -3073,3 +3084,67 @@ ade-grader:
             - ${PROMPT}
         prompt_via: argv
         timeout: 10m
+
+# ── Tier-2 LIVE VM eval bed (PR #9912) — the omarchy ISO VM, NOT a pod ──────
+# The real omarchy-vm (faithful ISO install — the same approach omarchy's own
+# acceptance tests use) + omarchy-autologin (unattended desktop) + the REAL behavior
+# checks run in the live session. Requires the EnsureIsoGuestSSH bootstrap
+# (plugin-deploy-vm, merged) so the guest comes up with sshd reachable.
+check-omarchy-pr-9912-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Tier-2 LIVE-VM eval bed for omacom/omarchy#9912 (group-aware
+            omarchy pkg add): the real omarchy ISO VM with the desktop up
+            unattended (omarchy-autologin) and the REAL behavior checks in
+            the live session (real pacman): installed packages not reported
+            missing, missing packages detected, the fully-installed base
+            group not reported missing, groups with missing members
+            detected, and the real `omarchy pkg add` completing with no
+            false error.
+        add_candy:
+            - omarchy-autologin
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - check: the guest is the installed omarchy system
+              id: live-vm-installed
+              context:
+                - runtime
+              file:
+                  file: /etc/os-release
+                  contains: ['ID=omarchy']
+            - check: sshd is reachable (the bootstrap-ssh precondition)
+              id: live-vm-sshd
+              context:
+                - runtime
+              service:
+                  service: sshd
+                  enabled: true
+                  running: true
+            - check: a fully-installed package group is not reported missing (real pacman, pr9912 group-aware path)
+              id: live-9912-group-fully-installed
+              context:
+                - runtime
+              command:
+                  command: omarchy-pkg-missing base
+              exit_status: 1
+            - check: a group with missing members is detected (real pacman)
+              id: live-9912-group-missing-member
+              context:
+                - runtime
+              command:
+                  command: omarchy-pkg-missing lv2-plugins
+              exit_status: 0
+            - check: pkg add uses the group-aware check
+              id: live-9912-pkg-add
+              context:
+                - runtime
+              command:
+                  command: grep -qF 'omarchy-pkg-missing' /usr/share/omarchy/bin/omarchy-pkg-add
