@@ -270,6 +270,95 @@ omarchy-vm:
                 - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
 
 
+# ── VM-on-VM clone (disk linking) ─────────────────────────────────────────────
+# The source.kind: clone primitive (plugin-vm v2026.246.0545): a fresh qcow2
+# whose backing chain is the omarchy-vm golden snapshot — a clone disk is a
+# ~196 KiB COW overlay, so a new VM materializes in seconds instead of a fresh
+# ISO install (~20-30 min). check-omarchy-clone-base provisions the golden
+# (idempotent — the anchored bed's fresh lane already captured it);
+# check-omarchy-clone deploys the clone entity and probes the cloned guest.
+omarchy-vm-clone:
+    vm:
+        source:
+            kind: clone
+            from_vm: omarchy-vm
+            from_snapshot: golden
+        disk_size: 40G
+        ram: 8G
+        cpu: 4
+        machine: q35
+        firmware: uefi-insecure
+        network: {mode: user}
+        ssh: {user: user, port_auto: true, key_source: generate}
+        backend: libvirt
+        libvirt:
+            devices:
+                channels: [{type: spicevmc, name: com.redhat.spice.0}]
+                graphics: [{type: spice, listen: [{type: socket}]}]
+                video: [{model: virtio, vram: 65536, heads: 1, accel3d: false}]
+                rng: [{model: virtio, backend: /dev/urandom}]
+                memballoon: {model: virtio}
+            snippets:
+                - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
+
+# Base bed: provisions the omarchy VM and captures the golden snapshot.
+check-omarchy-clone-base:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Omarchy VM-on-VM R10 base: provisions the omarchy VM, captures the
+            golden snapshot at install finalize (idempotent — the anchored bed's
+            fresh lane already captured it) for the clone bed.
+        snapshot:
+            on_finalize: golden
+            mode: external
+            keep_venue: true
+        plan:
+            - check: the omarchy guest reports its hostname (in-guest command probe)
+              id: ocb-base-hostname
+              command: "uname -n"
+              stdout:
+                matches: ".+"
+              eventually: 300s
+              retry_interval: 10s
+              context: [runtime]
+            - check: the guest reports its os-release (in-guest command probe)
+              id: ocb-base-os
+              command: "cat /etc/os-release"
+              stdout:
+                contains: "ID=omarchy"
+              context: [runtime]
+
+# Clone bed: deploys the clone entity of golden; probes prove the cloned
+# guest boots and answers.
+check-omarchy-clone:
+    vm:
+        from: omarchy-vm-clone
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Omarchy VM-on-VM R10 clone: deploys the source.kind clone entity
+            (from_vm=omarchy-vm@golden), probes the cloned guest with real
+            ssh/command verbs to prove it boots and answers.
+        plan:
+            - check: the cloned guest reports its hostname (in-guest command probe)
+              id: oc-clone-hostname
+              command: "uname -n"
+              stdout:
+                matches: ".+"
+              eventually: 300s
+              retry_interval: 10s
+              context: [runtime]
+            - check: the cloned guest reports its os-release (in-guest command probe)
+              id: oc-clone-os
+              command: "cat /etc/os-release"
+              stdout:
+                contains: "ID=omarchy"
+              context: [runtime]
+
+
 check-omarchy-hybrid-gpu-vm:
     vm:
         from: omarchy-vm
