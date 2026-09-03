@@ -652,7 +652,12 @@ check-omarchy-iso-vm:
               # A stock Omarchy install ships openssh with the unit disabled and the
               # firewall port closed. That this check can run AT ALL — it arrives over
               # ssh, on the key charly generated — is the proof; asserting the unit
-              # state makes the proof explicit rather than incidental.
+              # state makes the proof explicit rather than incidental. Together they
+              # assert the FULL reachability contract omarchy's own harness
+              # (omarchy-iso-test bootstrap_ssh) bootstraps manually: sshd enabled AND
+              # running AND the SSH port reachable through the install-time firewall
+              # (ufw default deny incoming). If the port were closed, this check could
+              # not arrive — the bed fails loudly at the SSH connection.
               service:
                   service: sshd
                   enabled: true
