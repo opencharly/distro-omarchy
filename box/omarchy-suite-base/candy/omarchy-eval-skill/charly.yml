@@ -55,13 +55,20 @@ omarchy-eval-skill:
             state, keybindings, service behavior) MUST be evaluated on a live VM
             (Tier-2), not just the container.
 
-            Hard-fail rule: a system-behavior PR evaluated ONLY on the container
-            tier is a HARD FAIL — the wrong test environment was chosen, and the
-            validation is invalid until the Tier-2 live VM run completes. It is
-            NEVER a soft pass: "mostly works — live behavior not yet tested" is
-            faking success for something the eval could not test. A container run
-            never becomes a live-behavior claim, and an untested live behavior
-            never becomes a pass.
+            The validation's purpose is binary: does it actually work? The only
+            valid verdicts are PASS (verified working on a live system) and FAIL
+            (verified not working on a live system). NO VALIDATION means the
+            validation itself failed — it could not answer the question because
+            the core behavior could not be tested on a live system.
+
+            Strict prohibition: any "might work" / "mostly works" / "it works"
+            evaluation that is NOT verified on a live system is STRICTLY FORBIDDEN
+            — it fakes success for something the validation could not test. A
+            pod-only eval is NOT a validation: the container tier cannot test live
+            system behavior, so a container run of a system-behavior PR proves
+            nothing about the PR and must never be presented as a validation. If
+            the validation cannot test the thing on a live system, the validation
+            itself FAILS — the result is NO VALIDATION, and no report is produced.
 
             ## The beds
 
