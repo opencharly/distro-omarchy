@@ -154,10 +154,13 @@ omarchy-eval-skill:
             5. Tier 2 (by class): `charly check run check-omarchy-pr-vm` /
                `check-omarchy-pr-vm-visual` — the VM PR injection + visual
                evidence loop.
-            6. Snapshot lane (batches): one base VM per channel, clean-snapshotted
+            6. Snapshot lane (batches, TARGET): one base VM per channel, clean-snapshotted
                (vm deploy `snapshot: on_finalize: golden`); per PR: libvirt
                snapshot/revert → re-apply the PR → `charly check live` →
-               evidence → revert. Record base provenance (channel, ISO calver,
+               evidence → revert. The golden bases are provisioned by the keeper
+               fresh lanes (check-charly-omarchy-{vm,rc,edge,dev}-vm); until the
+               first live keeper build captures them, the ISO-based beds (step 5)
+               are the operative path. Record base provenance (channel, ISO calver,
                snapshot id) in the report; verdicts can go STALE — compare the
                evaluated head with the PR's current head.
             7. Evidence contract: the check-run summary.yml + the screenshot

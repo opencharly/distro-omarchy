@@ -1060,7 +1060,9 @@ charly-omarchy:
 # One readily-available base VM per omarchy channel (omarchy.org/manual/updates/), each
 # deriving from the omarchy-vm ISO template with the charly toolchain + auto-login and a
 # clean golden snapshot (on_finalize: golden + keep_venue) as the lane revert target.
-# Lane mechanics + measured findings live in eval/PR-EVAL-LANE.md (opencharly/eval-omarchy).
+# Lane mechanics live in eval/PR-EVAL-LANE.md (opencharly/eval-omarchy). The golden
+# bases are DECLARED here and provisioned by the keeper fresh lanes (status: pending
+# until the first live keeper build captures the golden snapshot — see the lane doc).
 # UPDATE-INPUTS: omarchy update -y is measured NOT fully scriptable (stalls at the orphan
 # review) — bootstrap updates pipe 'y' answers and are time-boxed.
 # ASSERTION SCOPING: the round-trip checks assert EXIT CODE ONLY; exact stdout semantics
