@@ -281,7 +281,7 @@ omarchy-vm-clone:
     vm:
         source:
             kind: clone
-            from_vm: omarchy-vm
+            from_vm: check-omarchy-clone-base
             from_snapshot: golden
         disk_size: 40G
         ram: 8G
