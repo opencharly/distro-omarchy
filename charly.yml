@@ -3008,7 +3008,6 @@ check-omarchy-pr-vm-anchored:
     vm:
         from: omarchy-vm
         disposable: true
-        lifecycle: dev
         snapshot:
             on_finalize: golden
             keep_venue: true
