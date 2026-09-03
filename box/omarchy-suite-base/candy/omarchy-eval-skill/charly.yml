@@ -69,10 +69,14 @@ omarchy-eval-skill:
             knows exactly what still needs to be fixed or verified. A pod-only
             eval is NOT a validation: the container tier cannot test live system
             behavior, so a container run of a system-behavior PR proves nothing
-            about the PR and must never be presented as a validation. If the
-            validation cannot test the thing on a live system, the validation
-            itself fails — the result is NO VALIDATION, and no report is
-            produced.
+            about the PR and must never be presented as a validation.
+
+            Install missing software FIRST: when a tool/package is missing, create
+            a reusable install candy (e.g. cardwire from AUR via yay) and re-run —
+            installing is REQUIRED before any NO VALIDATION. NO VALIDATION is only
+            valid after installation AND live-tier testing were genuinely
+            attempted and proved impossible; otherwise the validation itself
+            fails, and no report is produced.
 
             ## The beds
 
