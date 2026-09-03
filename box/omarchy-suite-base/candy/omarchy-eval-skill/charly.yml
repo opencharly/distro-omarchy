@@ -55,20 +55,24 @@ omarchy-eval-skill:
             state, keybindings, service behavior) MUST be evaluated on a live VM
             (Tier-2), not just the container.
 
-            The validation's purpose is binary: does it actually work? The only
-            valid verdicts are PASS (verified working on a live system) and FAIL
-            (verified not working on a live system). NO VALIDATION means the
-            validation itself failed — it could not answer the question because
-            the core behavior could not be tested on a live system.
+            The validation's purpose: does it actually work? Reports answer in a
+            friendly, first-person voice — like another user who tried the PR —
+            and are crystal clear about what works and what still needs to be
+            fixed. There are NO binary PASS/FAIL judgments: the report says "this
+            part works" (verified on a live system), "this part does not work"
+            (verified on a live system), and "this part is not yet tested on a
+            live system" (no claim).
 
-            Strict prohibition: any "might work" / "mostly works" / "it works"
-            evaluation that is NOT verified on a live system is STRICTLY FORBIDDEN
-            — it fakes success for something the validation could not test. A
-            pod-only eval is NOT a validation: the container tier cannot test live
-            system behavior, so a container run of a system-behavior PR proves
-            nothing about the PR and must never be presented as a validation. If
-            the validation cannot test the thing on a live system, the validation
-            itself FAILS — the result is NO VALIDATION, and no report is produced.
+            Every "works" claim MUST be verified on a live system. A part that
+            was not tested on a live system is never claimed to work — it is
+            stated as "not yet tested on a live system", clearly, so the PR author
+            knows exactly what still needs to be fixed or verified. A pod-only
+            eval is NOT a validation: the container tier cannot test live system
+            behavior, so a container run of a system-behavior PR proves nothing
+            about the PR and must never be presented as a validation. If the
+            validation cannot test the thing on a live system, the validation
+            itself fails — the result is NO VALIDATION, and no report is
+            produced.
 
             ## The beds
 
