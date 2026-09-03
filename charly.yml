@@ -1095,12 +1095,14 @@ charly-omarchy-rc:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting rc again is a no-op (round-trip, exit-code only)
+            - check: the active channel is rc (round-trip via the reader)
               id: channel-roundtrip-rc
               context: [runtime]
-              command: omarchy-channel-set rc
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: rc
 
 charly-omarchy-edge:
     vm:
@@ -1129,12 +1131,14 @@ charly-omarchy-edge:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting edge again is a no-op (round-trip, exit-code only)
+            - check: the active channel is edge (round-trip via the reader)
               id: channel-roundtrip-edge
               context: [runtime]
-              command: omarchy-channel-set edge
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: edge
 
 charly-omarchy-dev:
     vm:
@@ -1167,12 +1171,14 @@ charly-omarchy-dev:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting dev again is a no-op (round-trip, exit-code only)
+            - check: the active channel is dev (round-trip via the reader)
               id: channel-roundtrip-dev
               context: [runtime]
-              command: omarchy-channel-set dev
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: dev
 
 
 check-charly-omarchy-rc-vm:
@@ -1206,12 +1212,14 @@ check-charly-omarchy-rc-vm:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting rc again is a no-op (round-trip, exit-code only)
+            - check: the active channel is rc (round-trip via the reader)
               id: channel-roundtrip-rc
               context: [runtime]
-              command: omarchy-channel-set rc
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: rc
             - check: charly is on PATH in the guest and runs
               id: charly-omarchy-cli-present
               context: [runtime]
@@ -1249,12 +1257,14 @@ check-charly-omarchy-edge-vm:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting edge again is a no-op (round-trip, exit-code only)
+            - check: the active channel is edge (round-trip via the reader)
               id: channel-roundtrip-edge
               context: [runtime]
-              command: omarchy-channel-set edge
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: edge
             - check: charly is on PATH in the guest and runs
               id: charly-omarchy-cli-present
               context: [runtime]
@@ -1296,12 +1306,14 @@ check-charly-omarchy-dev-vm:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting dev again is a no-op (round-trip, exit-code only)
+            - check: the active channel is dev (round-trip via the reader)
               id: channel-roundtrip-dev
               context: [runtime]
-              command: omarchy-channel-set dev
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: dev
             - check: charly is on PATH in the guest and runs
               id: charly-omarchy-cli-present
               context: [runtime]
@@ -3095,12 +3107,14 @@ check-omarchy-pr-vm-anchored-rc:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting rc again is a no-op (round-trip)
+            - check: the active channel is rc (round-trip via the reader)
               id: channel-roundtrip-rc
               context: [runtime]
-              command: omarchy-channel-set rc
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: rc
             - check: apply PR #9343's head over the installed tree (runtime apply seam)
               id: pr-apply
               context: [runtime]
@@ -3161,12 +3175,14 @@ check-omarchy-pr-vm-anchored-edge:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting edge again is a no-op (round-trip)
+            - check: the active channel is edge (round-trip via the reader)
               id: channel-roundtrip-edge
               context: [runtime]
-              command: omarchy-channel-set edge
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: edge
             - check: apply PR #9343's head over the installed tree (runtime apply seam)
               id: pr-apply
               context: [runtime]
@@ -3230,12 +3246,14 @@ check-omarchy-pr-vm-anchored-dev:
               command: sh -c 'printf "y\n" | timeout 600 omarchy update'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: setting dev again is a no-op (round-trip)
+            - check: the active channel is dev (round-trip via the reader)
               id: channel-roundtrip-dev
               context: [runtime]
-              command: omarchy-channel-set dev
+              command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
+              stdout:
+                  - contains: dev
             - check: apply PR #9343's head over the installed tree (runtime apply seam)
               id: pr-apply
               context: [runtime]
