@@ -2995,6 +2995,72 @@ check-omarchy-pr-vm:
 
 
 
+# ── stable-channel anchored PR bed (S3-anchored) ────────────────────────────────
+# The snapshot-anchored twin of check-omarchy-pr-vm: same shape (omarchy-vm +
+# charly toolchain + auto-login + golden snapshot), but the PR is applied at
+# RUNTIME via the apply seam, not via add_candy — anchored mode (--anchor golden)
+# SKIPS deploy-add (plugin-check anchored.go/bed_run.go), so a PR candy never
+# applies in the anchored lane. Run with `charly check run <bed> --anchor golden
+# --keep-venue`: the golden disk is reverted before the checks, so a batch of PR
+# runs shares ONE golden base (revert ≈ seconds vs fresh ISO install ≈ 20-30 min).
+# The FRESH lane (no --anchor) provisions the golden once (on_finalize capture).
+check-omarchy-pr-vm-anchored:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - check: apply PR #9343's head over the installed tree (runtime apply seam)
+              id: pr-apply
+              context:
+                - runtime
+              command: |
+                  set -eu
+                  rm -rf /tmp/pr-src
+                  git init -q /tmp/pr-src
+                  cd /tmp/pr-src
+                  git remote add origin https://github.com/omacom/omarchy
+                  git fetch -q --depth 1 origin pull/9343/head
+                  git checkout -q FETCH_HEAD
+                  sudo cp bin/omarchy-migrate /usr/share/omarchy/bin/omarchy-migrate
+            - check: the PR's omarchy-migrate is installed (pr-applied)
+              id: pr-applied
+              context:
+                - runtime
+              file:
+                  file: /usr/share/omarchy/bin/omarchy-migrate
+                  exists: true
+            - check: migrate --pending fails closed when the migrations dir is missing
+              id: pr9343-migrate-pending-missing-dir
+              context:
+                - runtime
+              env:
+                  OMARCHY_PATH: /tmp/missing-omarchy
+              command:
+                  command: /usr/share/omarchy/bin/omarchy-migrate --pending
+              exit_status: 2
+              stderr:
+                  - contains: migrations directory missing
+        description: >-
+            S3-anchored VM PR-injection proof: the omarchy-vm template with the
+            charly toolchain + auto-login + a golden snapshot (on_finalize), the
+            PR applied at RUNTIME via the apply seam (anchored mode skips
+            deploy-add), and the declarative behavior check (migrate --pending
+            exits 2 with the message when the migrations dir is absent). Run with
+            --anchor golden --keep-venue for the batch loop: revert ≈ seconds vs
+            fresh ISO install ≈ 20-30 min.
+
+
 # ── Tier-1 migration idempotence bed (S5) ─────────────────────────────────────
 # The migration harness: builds omarchy-migration-harness (applies all pending
 # migrations at build time) and asserts the idempotence (no pending after the
