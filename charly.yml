@@ -3074,6 +3074,41 @@ check-omarchy-pr-vm-visual:
 
 
 
+# ── record:gif evidence bed (S4-record) ────────────────────────────────────────
+# Proves the record:gif loop end-to-end on an omarchy venue: start a terminal
+# recording (asciinema), run a command into it, stop it (.cast), and render it
+# to an animated GIF with agg (layer-asciinema v2026.246.1622 ships agg + the
+# DejaVu font). The GIF artifact is the comment-visible evidence form for PR
+# evaluations (eval rule 6). The record plugin candy MUST be pinned here —
+# without it the record: steps SKIP as an unknown verb (the cstream-bed trap).
+check-omarchy-record-gif:
+    pod:
+        image: omarchy-suite-base
+        disposable: true
+        lifecycle: dev
+        add_candy:
+            - '@github.com/opencharly/plugin-record/candy/plugin-record:v2026.246.1624'
+        plan:
+            - check: start a terminal recording
+              id: record-start
+              record: {method: start, record_mode: terminal, record_name: omarchy-gif}
+            - check: run a command into the recording
+              id: record-run
+              record: {method: run, record_name: omarchy-gif, text: 'echo OMARCHY_RECORD_GIF_OK', settle_ms: 1000}
+            - check: stop the recording and pull the .cast
+              id: record-stop
+              record: {method: stop, record_name: omarchy-gif, artifact: /tmp/omarchy-gif.cast, artifact_min_bytes: 100}
+            - check: render the .cast to an animated GIF (agg)
+              id: record-gif
+              record: {method: gif, record_name: omarchy-gif, artifact: /tmp/omarchy-gif.gif, artifact_min_bytes: 100}
+        description: >-
+            S4-record evidence bed: the record:gif loop on the omarchy-suite-base
+            image (tmux + asciinema + agg via layer-tmux + layer-asciinema
+            v2026.246.1622), driven by the record plugin (v2026.246.1624). The
+            .gif artifact (≥ artifact_min_bytes) is the animated, comment-visible
+            evidence form for PR evaluations.
+
+
 # ── ADE grader agent (S4) ───────────────────────────────────────────────────────
 # The agent-check grader: Claude Code headless (-p), spawned by charly check
 # feature run to grade prose-only steps against the live deployment.
