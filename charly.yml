@@ -3061,6 +3061,217 @@ check-omarchy-pr-vm-anchored:
             fresh ISO install ≈ 20-30 min.
 
 
+# ── rc/edge/dev channel anchored PR beds (S3-anchored) ────────────────────────
+# The channel variants of check-omarchy-pr-vm-anchored: same shape (omarchy-vm +
+# charly toolchain + auto-login + golden snapshot), plus the channel bootstrap
+# (omarchy-channel-set <channel> + omarchy update) baked into the golden at
+# on_finalize. The run steps execute in the FRESH lane only (deploy-add is
+# skipped in anchored mode); the check steps (roundtrip + the PR apply seam +
+# the PR behavior checks) execute in both lanes. Run with `--anchor golden
+# --keep-venue` for the batch loop.
+check-omarchy-pr-vm-anchored-rc:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the rc channel
+              id: channel-switch-rc
+              command: omarchy-channel-set rc
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-rc
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - check: setting rc again is a no-op (round-trip)
+              id: channel-roundtrip-rc
+              context: [runtime]
+              command: omarchy-channel-set rc
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - check: apply PR #9343's head over the installed tree (runtime apply seam)
+              id: pr-apply
+              context: [runtime]
+              command: |
+                  set -eu
+                  rm -rf /tmp/pr-src
+                  git init -q /tmp/pr-src
+                  cd /tmp/pr-src
+                  git remote add origin https://github.com/omacom/omarchy
+                  git fetch -q --depth 1 origin pull/9343/head
+                  git checkout -q FETCH_HEAD
+                  sudo cp bin/omarchy-migrate /usr/share/omarchy/bin/omarchy-migrate
+            - check: the PR's omarchy-migrate is installed (pr-applied)
+              id: pr-applied
+              context: [runtime]
+              file:
+                  file: /usr/share/omarchy/bin/omarchy-migrate
+                  exists: true
+            - check: migrate --pending fails closed when the migrations dir is missing
+              id: pr9343-migrate-pending-missing-dir
+              context: [runtime]
+              env:
+                  OMARCHY_PATH: /tmp/missing-omarchy
+              command:
+                  command: /usr/share/omarchy/bin/omarchy-migrate --pending
+              exit_status: 2
+              stderr:
+                  - contains: migrations directory missing
+        description: >-
+            RC-channel anchored PR bed: the rc keeper twin's shape (channel
+            bootstrap baked into the golden) with the PR applied at RUNTIME via
+            the apply seam. Run with --anchor golden --keep-venue for the batch
+            loop: revert ≈ seconds vs fresh ISO install ≈ 20-30 min.
+
+check-omarchy-pr-vm-anchored-edge:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the edge channel
+              id: channel-switch-edge
+              command: omarchy-channel-set edge
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-edge
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - check: setting edge again is a no-op (round-trip)
+              id: channel-roundtrip-edge
+              context: [runtime]
+              command: omarchy-channel-set edge
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - check: apply PR #9343's head over the installed tree (runtime apply seam)
+              id: pr-apply
+              context: [runtime]
+              command: |
+                  set -eu
+                  rm -rf /tmp/pr-src
+                  git init -q /tmp/pr-src
+                  cd /tmp/pr-src
+                  git remote add origin https://github.com/omacom/omarchy
+                  git fetch -q --depth 1 origin pull/9343/head
+                  git checkout -q FETCH_HEAD
+                  sudo cp bin/omarchy-migrate /usr/share/omarchy/bin/omarchy-migrate
+            - check: the PR's omarchy-migrate is installed (pr-applied)
+              id: pr-applied
+              context: [runtime]
+              file:
+                  file: /usr/share/omarchy/bin/omarchy-migrate
+                  exists: true
+            - check: migrate --pending fails closed when the migrations dir is missing
+              id: pr9343-migrate-pending-missing-dir
+              context: [runtime]
+              env:
+                  OMARCHY_PATH: /tmp/missing-omarchy
+              command:
+                  command: /usr/share/omarchy/bin/omarchy-migrate --pending
+              exit_status: 2
+              stderr:
+                  - contains: migrations directory missing
+        description: >-
+            Edge-channel anchored PR bed: the edge keeper twin's shape (channel
+            bootstrap baked into the golden) with the PR applied at RUNTIME via
+            the apply seam. Run with --anchor golden --keep-venue for the batch
+            loop: revert ≈ seconds vs fresh ISO install ≈ 20-30 min.
+
+check-omarchy-pr-vm-anchored-dev:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        snapshot:
+            on_finalize: golden
+            keep_venue: true
+        add_candy:
+            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - omarchy-autologin
+        install_opts:
+            allow_repo_changes: true
+            allow_root_tasks: true
+            with_service: true
+            skip_incompatible: true
+        plan:
+            - run: switch the base to the dev channel
+              id: channel-switch-dev
+              command: omarchy-channel-set dev
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
+              id: dev-checkout-omarchy
+              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
+            - run: update to the channel head (piped answers, time-boxed)
+              id: channel-update-dev
+              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - check: setting dev again is a no-op (round-trip)
+              id: channel-roundtrip-dev
+              context: [runtime]
+              command: omarchy-channel-set dev
+              env:
+                  OMARCHY_PATH: /usr/share/omarchy
+            - check: apply PR #9343's head over the installed tree (runtime apply seam)
+              id: pr-apply
+              context: [runtime]
+              command: |
+                  set -eu
+                  rm -rf /tmp/pr-src
+                  git init -q /tmp/pr-src
+                  cd /tmp/pr-src
+                  git remote add origin https://github.com/omacom/omarchy
+                  git fetch -q --depth 1 origin pull/9343/head
+                  git checkout -q FETCH_HEAD
+                  sudo cp bin/omarchy-migrate /usr/share/omarchy/bin/omarchy-migrate
+            - check: the PR's omarchy-migrate is installed (pr-applied)
+              id: pr-applied
+              context: [runtime]
+              file:
+                  file: /usr/share/omarchy/bin/omarchy-migrate
+                  exists: true
+            - check: migrate --pending fails closed when the migrations dir is missing
+              id: pr9343-migrate-pending-missing-dir
+              context: [runtime]
+              env:
+                  OMARCHY_PATH: /tmp/missing-omarchy
+              command:
+                  command: /usr/share/omarchy/bin/omarchy-migrate --pending
+              exit_status: 2
+              stderr:
+                  - contains: migrations directory missing
+        description: >-
+            Dev-channel anchored PR bed: the dev keeper twin's shape (dev channel
+            bootstrap + the ~/omarchy source checkout baked into the golden) with
+            the PR applied at RUNTIME via the apply seam. Run with --anchor
+            golden --keep-venue for the batch loop: revert ≈ seconds vs fresh ISO
+            install ≈ 20-30 min.
+
+
 # ── Tier-1 migration idempotence bed (S5) ─────────────────────────────────────
 # The migration harness: builds omarchy-migration-harness (applies all pending
 # migrations at build time) and asserts the idempotence (no pending after the
