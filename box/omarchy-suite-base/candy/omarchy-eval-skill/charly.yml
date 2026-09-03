@@ -53,9 +53,26 @@ omarchy-eval-skill:
             Routing rule: a PR whose core behavior is system-level (hardware
             switching, filesystem/snapshot behavior, session environment, network
             state, keybindings, service behavior) MUST be evaluated on a live VM
-            (Tier-2), not just the container. If the live tier cannot run (no base
-            VM), the report must say "live behavior not tested — requires the
-            Tier-2 VM lane" and the verdict is capped accordingly.
+            (Tier-2), not just the container.
+
+            The validation's purpose: does it actually work? Reports answer in a
+            friendly, first-person voice — like another user who tried the PR —
+            and are crystal clear about what works and what still needs to be
+            fixed. There are NO binary PASS/FAIL judgments: the report says "this
+            part works" (verified on a live system), "this part does not work"
+            (verified on a live system), and "this part is not yet tested on a
+            live system" (no claim).
+
+            Every "works" claim MUST be verified on a live system. A part that
+            was not tested on a live system is never claimed to work — it is
+            stated as "not yet tested on a live system", clearly, so the PR author
+            knows exactly what still needs to be fixed or verified. A pod-only
+            eval is NOT a validation: the container tier cannot test live system
+            behavior, so a container run of a system-behavior PR proves nothing
+            about the PR and must never be presented as a validation. If the
+            validation cannot test the thing on a live system, the validation
+            itself fails — the result is NO VALIDATION, and no report is
+            produced.
 
             ## The beds
 
@@ -142,7 +159,12 @@ omarchy-eval-skill:
             7. Evidence contract: the check-run summary.yml + the screenshot
                artifact + the ADE verdict (charly check feature run --agent).
             8. Render the validation comment from eval/PR-EVAL-TEMPLATE.md;
-               POST only behind the operator approval gate.
+               POST only behind the operator approval gate. Before finalizing or
+               posting, a COLD READER who did not author the evaluation validates
+               the report against the criteria (never mock, known-red, tier
+               compliance, claims scoped to the tier, recordings non-empty,
+               Assisted-by footer, disclaimer, triage) — a report that fails the
+               cold read is fixed, not posted.
             9. Batch loop: repeated bed runs, one per PR, with the SHA-keyed
                result cache (eval-omarchy's scripts/omarchy-rollup.py) skipping
                unchanged heads.
