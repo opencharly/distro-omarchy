@@ -53,9 +53,15 @@ omarchy-eval-skill:
             Routing rule: a PR whose core behavior is system-level (hardware
             switching, filesystem/snapshot behavior, session environment, network
             state, keybindings, service behavior) MUST be evaluated on a live VM
-            (Tier-2), not just the container. If the live tier cannot run (no base
-            VM), the report must say "live behavior not tested — requires the
-            Tier-2 VM lane" and the verdict is capped accordingly.
+            (Tier-2), not just the container.
+
+            Hard-fail rule: a system-behavior PR evaluated ONLY on the container
+            tier is a HARD FAIL — the wrong test environment was chosen, and the
+            validation is invalid until the Tier-2 live VM run completes. It is
+            NEVER a soft pass: "mostly works — live behavior not yet tested" is
+            faking success for something the eval could not test. A container run
+            never becomes a live-behavior claim, and an untested live behavior
+            never becomes a pass.
 
             ## The beds
 
@@ -142,7 +148,12 @@ omarchy-eval-skill:
             7. Evidence contract: the check-run summary.yml + the screenshot
                artifact + the ADE verdict (charly check feature run --agent).
             8. Render the validation comment from eval/PR-EVAL-TEMPLATE.md;
-               POST only behind the operator approval gate.
+               POST only behind the operator approval gate. Before finalizing or
+               posting, a COLD READER who did not author the evaluation validates
+               the report against the criteria (never mock, known-red, tier
+               compliance, claims scoped to the tier, recordings non-empty,
+               Assisted-by footer, disclaimer, triage) — a report that fails the
+               cold read is fixed, not posted.
             9. Batch loop: repeated bed runs, one per PR, with the SHA-keyed
                result cache (eval-omarchy's scripts/omarchy-rollup.py) skipping
                unchanged heads.
