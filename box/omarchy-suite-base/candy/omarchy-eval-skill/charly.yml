@@ -7,15 +7,55 @@ omarchy-eval-skill:
             The omarchy PR evaluation procedure — the charly-driven pipeline for
             evaluating omacom/omarchy PRs on disposable beds, using charly checks
             (not the upstream shell scripts) to assert the live omarchy system.
-            MUST be invoked when evaluating an omarchy PR, running the omarchy
-            evaluation beds (check-omarchy-suite-pod, check-omarchy-pr-vm,
-            check-omarchy-pr-vm-visual), or grading omarchy visual changes.
+            NEVER mock anything: every check uses the REAL tool and REAL system
+            state; system behavior is tested on the live VM, never claimed from a
+            container run. MUST be invoked when evaluating an omarchy PR, running
+            the omarchy evaluation beds (check-omarchy-suite-pod,
+            check-omarchy-pr-vm, check-omarchy-pr-vm-visual), or grading omarchy
+            visual changes.
         content: |-
             # /omarchy-eval:omarchy-pr-check
 
             Evaluate an omacom/omarchy PR with charly checks on disposable beds.
-            The checks assert the resulting SYSTEM STATE (charly consequence
-            checks), not upstream's mocked call sequences — strictly stronger.
+            The checks assert the PR's behavior on the REAL system with REAL tools.
+
+            ## The first rule: NEVER mock anything — ever
+
+            A check that substitutes a fake tool for the real one proves nothing
+            about the PR. Every check must exercise the REAL tool, the REAL system
+            state, the REAL behavior. If a behavior cannot be tested with the real
+            tools available in the current tier (e.g. real cardwire, real btrfs
+            snapshots, a real flatpak session), it must be tested on the live VM
+            tier (Tier-2) — or not claimed at all. A mocked check is not evidence;
+            a report built on mocks is useless. This rule is first because it is
+            the whole point: an evaluation that mocks is not an evaluation.
+
+            ## What each tier proves (honest semantics)
+
+            A claim in a report is only as strong as the tier that produced it.
+            Never claim live-system behavior from a container run.
+
+            - Tier-1 container (pod): proves the PR's files are applied to the
+              installed tree, and the script-level logic with the container's REAL
+              tools (e.g. real pacman, real commands, real file state). It does
+              NOT prove live system behavior: real hardware switching, real
+              filesystem/snapshot behavior, a real session environment, real
+              network state, real keypresses, real service behavior. No mocked
+              tools, ever.
+            - Tier-2 live VM (omarchy-vm): proves the PR's behavior on a real
+              omarchy system — real cardwire, real btrfs snapshots, real flatpak,
+              real network, real desktop. This is the tier for system-behavior
+              claims.
+            - Tier-2 visual / L3 GPU: desktop evidence and hardware-bound classes
+              (PARTIAL/NOT-EVALUABLE when the hardware is unavailable — never a
+              faked bed).
+
+            Routing rule: a PR whose core behavior is system-level (hardware
+            switching, filesystem/snapshot behavior, session environment, network
+            state, keybindings, service behavior) MUST be evaluated on a live VM
+            (Tier-2), not just the container. If the live tier cannot run (no base
+            VM), the report must say "live behavior not tested — requires the
+            Tier-2 VM lane" and the verdict is capped accordingly.
 
             ## The beds
 
@@ -76,14 +116,20 @@ omarchy-eval-skill:
                pinned at a quattro hash so evaluation criteria are version-locked.
             2. Tier 0: classify the diff (the venue-ladder map) and assign a
                venue; extract the PR's "## Verification" claim; hardware-bound
-               classes get PARTIAL/NOT-EVALUABLE, never a faked bed.
+               classes get PARTIAL/NOT-EVALUABLE, never a faked bed. Route
+               system-behavior PRs (hardware switching, filesystem/snapshot
+               behavior, session environment, network state, keybindings,
+               services) to the live VM tier — the container tier alone is
+               insufficient for them.
             3. Apply the PR at the channel's seam (the apply contract): fetch
                pull/<N>/head SHA-pinned, install ONLY the changed files over the
                installed tree (dev lane: check out the PR head in ~/omarchy),
                and prove application with a pr-applied check — the known-red
                fixture surfaces a missed apply per-check.
             4. Tier 1: `charly check run check-omarchy-suite-pod` (or the
-               PR-variant bed) — the suite pod's charly checks.
+               PR-variant bed) — the suite pod's charly checks, with REAL tools
+               only (never mocks). Every PR-specific check must fail without the
+               PR applied (the known-red fixture).
             5. Tier 2 (by class): `charly check run check-omarchy-pr-vm` /
                `check-omarchy-pr-vm-visual` — the VM PR injection + visual
                evidence loop.
@@ -115,6 +161,14 @@ omarchy-eval-skill:
 
             ## Guardrails (from doctrine)
 
+            - NEVER mock anything — a mocked check is not evidence; a report built
+              on mocks is useless.
+            - Every PR-specific check must fail without the PR applied (the
+              known-red fixture); general sanity checks are labeled
+              non-PR-specific and never counted as PR proof.
+            - Claims are scoped to the tier that produced them: a container run
+              proves script logic and file application with REAL tools, never live
+              system behavior; system-behavior claims come from the Tier-2 live VM.
             - Never let an ADE/iteration loop rewrite widget QML wholesale
               (shell-dev.md glyph loss).
             - Migrations double-run (the S5 harness proves idempotence).
