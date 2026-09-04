@@ -1253,7 +1253,7 @@ charly-omarchy-dev:
               timeout: 10m
               command: |
                   set -eu
-                  omarchy-channel-set dev || true
+                  echo y | omarchy-channel-set dev || true
                   sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
@@ -1390,7 +1390,7 @@ check-charly-omarchy-dev-vm:
               timeout: 10m
               command: |
                   set -eu
-                  omarchy-channel-set dev || true
+                  echo y | omarchy-channel-set dev || true
                   sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
@@ -3332,7 +3332,7 @@ check-omarchy-pr-vm-anchored-dev:
               timeout: 10m
               command: |
                   set -eu
-                  omarchy-channel-set dev || true
+                  echo y | omarchy-channel-set dev || true
                   sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
