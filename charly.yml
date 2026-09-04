@@ -38,6 +38,8 @@ import:
 discover:
     - path: box
       recursive: true
+    - path: candy
+      recursive: true
 
 # ── disposable R10 beds ──────────────────────────────────────────────────────────
 # `disposable: true` is the SOLE authorization for the unattended destroy + rebuild
@@ -1168,6 +1170,7 @@ charly-omarchy-rc:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -1178,10 +1181,7 @@ charly-omarchy-rc:
               id: channel-switch-rc
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  omarchy-channel-set rc || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap rc'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is rc (round-trip via the reader)
@@ -1204,6 +1204,7 @@ charly-omarchy-edge:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -1214,10 +1215,7 @@ charly-omarchy-edge:
               id: channel-switch-edge
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  omarchy-channel-set edge || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap edge'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is edge (round-trip via the reader)
@@ -1241,6 +1239,7 @@ charly-omarchy-dev:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -1251,17 +1250,9 @@ charly-omarchy-dev:
               id: channel-switch-dev
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  echo y | omarchy-channel-set dev || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap dev'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: populate the ~/omarchy source checkout (dev channel binds the OS to it)
-              id: dev-checkout-omarchy
-              context: [runtime]
-              timeout: 10m
-              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
             - check: the active channel is dev (round-trip via the reader — the dev channel reports edge, its package state)
               id: channel-roundtrip-dev
               context: [runtime]
@@ -1287,6 +1278,7 @@ check-charly-omarchy-rc-vm:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -1297,10 +1289,7 @@ check-charly-omarchy-rc-vm:
               id: channel-switch-rc
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  omarchy-channel-set rc || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap rc'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is rc (round-trip via the reader)
@@ -1332,6 +1321,7 @@ check-charly-omarchy-edge-vm:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -1342,10 +1332,7 @@ check-charly-omarchy-edge-vm:
               id: channel-switch-edge
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  omarchy-channel-set edge || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap edge'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is edge (round-trip via the reader)
@@ -1378,6 +1365,7 @@ check-charly-omarchy-dev-vm:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -1388,17 +1376,9 @@ check-charly-omarchy-dev-vm:
               id: channel-switch-dev
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  echo y | omarchy-channel-set dev || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap dev'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: populate the ~/omarchy source checkout (dev channel binds the OS to it)
-              id: dev-checkout-omarchy
-              context: [runtime]
-              timeout: 10m
-              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
             - check: the active channel is dev (round-trip via the reader — the dev channel reports edge, its package state)
               id: channel-roundtrip-dev
               context: [runtime]
@@ -3119,6 +3099,7 @@ check-omarchy-pr-vm-anchored:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -3184,6 +3165,7 @@ check-omarchy-pr-vm-anchored-rc:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -3194,10 +3176,7 @@ check-omarchy-pr-vm-anchored-rc:
               id: channel-switch-rc
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  omarchy-channel-set rc || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap rc'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is rc (round-trip via the reader)
@@ -3252,6 +3231,7 @@ check-omarchy-pr-vm-anchored-edge:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -3262,10 +3242,7 @@ check-omarchy-pr-vm-anchored-edge:
               id: channel-switch-edge
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  omarchy-channel-set edge || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap edge'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is edge (round-trip via the reader)
@@ -3320,6 +3297,7 @@ check-omarchy-pr-vm-anchored-dev:
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
+            - omarchy-channel-bootstrap
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -3330,17 +3308,9 @@ check-omarchy-pr-vm-anchored-dev:
               id: channel-switch-dev
               context: [runtime]
               timeout: 10m
-              command: |
-                  set -eu
-                  echo y | omarchy-channel-set dev || true
-                  sudo pacman -Suu --noconfirm
+              command: 'channel-bootstrap dev'
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - check: populate the ~/omarchy source checkout (dev channel binds the OS to it)
-              id: dev-checkout-omarchy
-              context: [runtime]
-              timeout: 10m
-              command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
             - check: the active channel is dev (round-trip via the reader — the dev channel reports edge, its package state)
               id: channel-roundtrip-dev
               context: [runtime]
