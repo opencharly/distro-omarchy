@@ -1174,14 +1174,14 @@ charly-omarchy-rc:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the rc channel
+            - check: switch the base to the rc channel (channel-set + full update accepting downgrades)
               id: channel-switch-rc
-              command: omarchy-channel-set rc
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-rc
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set rc || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is rc (round-trip via the reader)
@@ -1210,14 +1210,14 @@ charly-omarchy-edge:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the edge channel
+            - check: switch the base to the edge channel (channel-set + full update accepting downgrades)
               id: channel-switch-edge
-              command: omarchy-channel-set edge
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-edge
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set edge || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is edge (round-trip via the reader)
@@ -1247,19 +1247,21 @@ charly-omarchy-dev:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the dev channel
+            - check: switch the base to the dev channel (channel-set + full update accepting downgrades)
               id: channel-switch-dev
-              command: omarchy-channel-set dev
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set dev || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
+            - check: populate the ~/omarchy source checkout (dev channel binds the OS to it)
               id: dev-checkout-omarchy
+              context: [runtime]
+              timeout: 10m
               command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-dev
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is dev (round-trip via the reader)
               id: channel-roundtrip-dev
               context: [runtime]
@@ -1291,14 +1293,14 @@ check-charly-omarchy-rc-vm:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the rc channel
+            - check: switch the base to the rc channel (channel-set + full update accepting downgrades)
               id: channel-switch-rc
-              command: omarchy-channel-set rc
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-rc
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set rc || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is rc (round-trip via the reader)
@@ -1336,14 +1338,14 @@ check-charly-omarchy-edge-vm:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the edge channel
+            - check: switch the base to the edge channel (channel-set + full update accepting downgrades)
               id: channel-switch-edge
-              command: omarchy-channel-set edge
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-edge
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set edge || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is edge (round-trip via the reader)
@@ -1382,19 +1384,21 @@ check-charly-omarchy-dev-vm:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the dev channel
+            - check: switch the base to the dev channel (channel-set + full update accepting downgrades)
               id: channel-switch-dev
-              command: omarchy-channel-set dev
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set dev || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
+            - check: populate the ~/omarchy source checkout (dev channel binds the OS to it)
               id: dev-checkout-omarchy
+              context: [runtime]
+              timeout: 10m
               command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-dev
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is dev (round-trip via the reader)
               id: channel-roundtrip-dev
               context: [runtime]
@@ -3186,14 +3190,14 @@ check-omarchy-pr-vm-anchored-rc:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the rc channel
+            - check: switch the base to the rc channel (channel-set + full update accepting downgrades)
               id: channel-switch-rc
-              command: omarchy-channel-set rc
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-rc
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set rc || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is rc (round-trip via the reader)
@@ -3254,14 +3258,14 @@ check-omarchy-pr-vm-anchored-edge:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the edge channel
+            - check: switch the base to the edge channel (channel-set + full update accepting downgrades)
               id: channel-switch-edge
-              command: omarchy-channel-set edge
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-edge
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set edge || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is edge (round-trip via the reader)
@@ -3322,19 +3326,21 @@ check-omarchy-pr-vm-anchored-dev:
             with_service: true
             skip_incompatible: true
         plan:
-            - run: switch the base to the dev channel
+            - check: switch the base to the dev channel (channel-set + full update accepting downgrades)
               id: channel-switch-dev
-              command: omarchy-channel-set dev
+              context: [runtime]
+              timeout: 10m
+              command: |
+                  set -eu
+                  omarchy-channel-set dev || true
+                  sudo pacman -Suu --noconfirm
               env:
                   OMARCHY_PATH: /usr/share/omarchy
-            - run: populate the ~/omarchy source checkout (dev channel binds the OS to it)
+            - check: populate the ~/omarchy source checkout (dev channel binds the OS to it)
               id: dev-checkout-omarchy
+              context: [runtime]
+              timeout: 10m
               command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
-            - run: update to the channel head (piped answers, time-boxed)
-              id: channel-update-dev
-              command: sh -c 'printf "y\n" | timeout 600 omarchy update'
-              env:
-                  OMARCHY_PATH: /usr/share/omarchy
             - check: the active channel is dev (round-trip via the reader)
               id: channel-roundtrip-dev
               context: [runtime]
