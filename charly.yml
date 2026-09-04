@@ -1262,14 +1262,14 @@ charly-omarchy-dev:
               context: [runtime]
               timeout: 10m
               command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
-            - check: the active channel is dev (round-trip via the reader)
+            - check: the active channel is dev (round-trip via the reader — the dev channel reports edge, its package state)
               id: channel-roundtrip-dev
               context: [runtime]
               command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
               stdout:
-                  - contains: dev
+                  - contains: edge
 
 
 check-charly-omarchy-rc-vm:
@@ -1399,14 +1399,14 @@ check-charly-omarchy-dev-vm:
               context: [runtime]
               timeout: 10m
               command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
-            - check: the active channel is dev (round-trip via the reader)
+            - check: the active channel is dev (round-trip via the reader — the dev channel reports edge, its package state)
               id: channel-roundtrip-dev
               context: [runtime]
               command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
               stdout:
-                  - contains: dev
+                  - contains: edge
             - check: charly is on PATH in the guest and runs
               id: charly-omarchy-cli-present
               context: [runtime]
@@ -3341,14 +3341,14 @@ check-omarchy-pr-vm-anchored-dev:
               context: [runtime]
               timeout: 10m
               command: 'u="$(getent passwd 1000 | cut -d: -f1)" && test -n "$u" && mkdir -p /home/$u/omarchy && cd /home/$u/omarchy && (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C /home/$u/omarchy fetch -q origin)'
-            - check: the active channel is dev (round-trip via the reader)
+            - check: the active channel is dev (round-trip via the reader — the dev channel reports edge, its package state)
               id: channel-roundtrip-dev
               context: [runtime]
               command: omarchy-channel-current
               env:
                   OMARCHY_PATH: /usr/share/omarchy
               stdout:
-                  - contains: dev
+                  - contains: edge
             - check: apply PR #9343's head over the installed tree (runtime apply seam)
               id: pr-apply
               context: [runtime]
