@@ -1263,9 +1263,31 @@ charly-omarchy-dev:
                   - contains: edge
 
 
+omarchy-vm-clone-stable:
+    vm:
+        source:
+            kind: clone
+            from_vm: check-charly-omarchy-vm
+            from_snapshot: golden
+        disk_size: 40G
+        ram: 8G
+        cpu: 4
+        machine: q35
+        firmware: uefi-insecure
+        network: {mode: user}
+        ssh: {user: user, port_auto: true, key_source: generate}
+        backend: libvirt
+        libvirt:
+            devices:
+                channels: [{type: spicevmc, name: com.redhat.spice.0}]
+                graphics: [{type: spice, listen: [{type: socket}]}]
+                video: [{model: virtio, vram: 65536, heads: 1, accel3d: false}]
+                rng: [{model: virtio, backend: /dev/urandom}]
+                memballoon: {model: virtio}
+
 check-charly-omarchy-rc-vm:
     vm:
-        from: omarchy-vm
+        from: omarchy-vm-clone-stable
         disposable: true
         description: >-
             The RC keeper's disposable twin: fresh ISO install + channel bootstrap
@@ -1309,7 +1331,7 @@ check-charly-omarchy-rc-vm:
 
 check-charly-omarchy-edge-vm:
     vm:
-        from: omarchy-vm
+        from: omarchy-vm-clone-stable
         disposable: true
         description: >-
             The Edge keeper's disposable twin: fresh ISO install + channel bootstrap
@@ -1353,7 +1375,7 @@ check-charly-omarchy-edge-vm:
 
 check-charly-omarchy-dev-vm:
     vm:
-        from: omarchy-vm
+        from: omarchy-vm-clone-stable
         disposable: true
         description: >-
             The Dev keeper's disposable twin: fresh ISO install + dev-channel

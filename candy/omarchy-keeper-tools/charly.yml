@@ -11,11 +11,15 @@ omarchy-keeper-tools:
         plan:
             - run: install acpid + qemu-guest-agent and update all packages (current golden)
               id: keeper-tools-install
+              timeout: 10m   # bounded: the pacman mirror-refresh can hang indefinitely (measured) — a bounded fail beats an infinite stall
               command: |
                   set -eu
                   pacman -S --needed --noconfirm acpid qemu-guest-agent
                   systemctl enable --now acpid
-                  systemctl enable --now qemu-guest-agent
+                  # qemu-guest-agent: enable ONLY (the --now start fails at deploy with a
+                  # dependency-job error — the socket-activated agent starts when the
+                  # virtio-serial channel is used; the golden needs it ENABLED).
+                  systemctl enable qemu-guest-agent
                   pacman -Syu --noconfirm
             - check: acpid is enabled
               id: keeper-tools-acpid
