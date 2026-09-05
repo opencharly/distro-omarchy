@@ -1,0 +1,41 @@
+omarchy-channel-bootstrap:
+    candy:
+        version: 2026.247.1300
+        description: |
+            The ONE channel-bootstrap helper for the omarchy keeper lanes (T11 —
+            single source; R3: no duplicated channel-set + update + roundtrip blocks
+            anywhere). Installs /usr/local/bin/channel-bootstrap <channel> which:
+            1) omarchy-channel-set <channel> (accepting the rc/edge downgrades), 2) the
+            full package update (pacman -Suu --noconfirm), 3) for dev: the ~/omarchy
+            source checkout (the dev channel binds the OS to it). Keeper beds call it
+            exactly once and assert the roundtrip with omarchy-channel-current.
+        plan:
+            - run: install the channel-bootstrap helper (the single channel seam)
+              id: eval-channel-bootstrap-install
+              command: |
+                  set -eu
+                  install -D -m 0755 /dev/stdin /usr/local/bin/channel-bootstrap <<'CB_EOF'
+                  #!/usr/bin/env bash
+                  # channel-bootstrap <channel> — set the omarchy update channel + full update (accept downgrades); dev also checkouts ~/omarchy.
+                  set -eu
+                  CH=$1
+                  case "$CH" in
+                    rc|edge|stable) ANSWER=" " ;;
+                    dev) ANSWER="y" ;;
+                    *) echo "channel-bootstrap: unknown channel $CH" >&2; exit 2 ;;
+                  esac
+                  echo "$ANSWER" | omarchy-channel-set "$CH" || true
+                  sudo pacman -Suu --noconfirm
+                  if [ "$CH" = dev ]; then
+                      u="$(getent passwd 1000 | cut -d: -f1)"
+                      test -n "$u"
+                      mkdir -p "/home/$u/omarchy"
+                      cd "/home/$u/omarchy"
+                      (git clone --depth 1 https://github.com/omacom/omarchy.git . 2>/dev/null || git -C "/home/$u/omarchy" fetch -q origin)
+                  fi
+                  echo "channel-bootstrap: $CH set + updated"
+                  CB_EOF
+            - check: the helper is installed
+              id: eval-channel-bootstrap-ok
+              context: [runtime]
+              command: test -x /usr/local/bin/channel-bootstrap

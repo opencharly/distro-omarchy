@@ -1,0 +1,35 @@
+omarchy-keeper-tools:
+    candy:
+        version: 2026.247.1400
+        description: |
+            The keeper-golden tooling payload for the omarchy channel bases: acpid (fast
+            ACPI shutdown — channel evals shut down in seconds, not the graceful-stop
+            grace), qemu-guest-agent (consistent snapshots + console fallback), and a
+            FULL PACKAGE UPDATE so every channel golden carries current packages at
+            capture. Composed by all four keeper beds (stable/rc/edge/dev); mutating
+            steps run at deploy ONCE at capture.
+        plan:
+            - run: install acpid + qemu-guest-agent and update all packages (current golden)
+              id: keeper-tools-install
+              timeout: 10m   # bounded: the pacman mirror-refresh can hang indefinitely (measured) — a bounded fail beats an infinite stall
+              command: |
+                  set -eu
+                  pacman -S --needed --noconfirm acpid qemu-guest-agent
+                  systemctl enable --now acpid
+                  # qemu-guest-agent: enable ONLY (the --now start fails at deploy with a
+                  # dependency-job error — the socket-activated agent starts when the
+                  # virtio-serial channel is used; the golden needs it ENABLED).
+                  systemctl enable qemu-guest-agent
+                  pacman -Syu --noconfirm
+            - check: acpid is enabled
+              id: keeper-tools-acpid
+              context: [runtime]
+              service:
+                  service: acpid
+                  enabled: true
+            - check: qemu-guest-agent is enabled
+              id: keeper-tools-ga
+              context: [runtime]
+              service:
+                  service: qemu-guest-agent
+                  enabled: true
