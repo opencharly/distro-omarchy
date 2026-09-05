@@ -3573,7 +3573,7 @@ check-omarchy-pr-9912-vm:
                   command: grep -qF 'omarchy-pkg-missing' /usr/share/omarchy/bin/omarchy-pkg-add
 check-instrument-omarchy-vm:
     vm:
-        from: omarchy-vm
+        from: omarchy-vm-clone
         disposable: true
         lifecycle: dev
         add_candy:
@@ -3590,4 +3590,4 @@ check-instrument-omarchy-vm:
         plan:
             - check: the omarchy instrument bed runs its subject steps
               id: subject-prove
-              command: 'true'
+              command: 'test -x /usr/bin/omarchy-theme-set-vscode'
