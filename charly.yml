@@ -19,7 +19,7 @@
 #  All 148 base packages resolve with plain pacman (23 from [omarchy], 125 from
 #  core/extra/multilib served by Omarchy's mirror snapshot), which is why the base box is
 #  `build: [pac]` with NO aur builder.
-version: 2026.240.1943
+version: 2026.248.1030
 repo: github.com/opencharly/distro-omarchy
 defaults:
     platform:
@@ -238,7 +238,7 @@ omarchy-vm:
                 # auto-install path instead. The manual's authorized_keys path is
                 # unchanged and preserved alongside.
                 answer:
-                    custom_commands: '["systemctl enable sshd", "ufw allow 22/tcp"]'
+                    custom_commands: "[\"systemctl enable sshd\", \"ufw allow 22/tcp\", \"echo 'user ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/99-charly\", \"pacman -S --needed --noconfirm asciinema\"]"
                 # ssh_authorized_key is deliberately ABSENT: it defaults to the public
                 # half of ssh.key_source: generate below. That default is what makes the
                 # guest reachable at all — a stock Omarchy install ships openssh with the
@@ -3571,3 +3571,26 @@ check-omarchy-pr-9912-vm:
                 - runtime
               command:
                   command: grep -qF 'omarchy-pkg-missing' /usr/share/omarchy/bin/omarchy-pkg-add
+check-instrument-omarchy-vm:
+    vm:
+        from: omarchy-vm-clone
+        disposable: true
+        lifecycle: dev
+        add_candy:
+            - '@github.com/opencharly/layer-tmux:v2026.240.0202'
+            - '@github.com/opencharly/layer-asciinema:v2026.246.1622'
+        instrument:
+            - id: screen
+              phase: [live]
+              spice: {method: session, fps: 5}
+              # The media contract's screen.mp4: the spice session's MJPEG is the
+              # transcode verb's SOURCE (source_artifact), transcoded to an MP4
+              # container (H.264 + yuv420p) by the host-side ffmpeg pipeline word.
+              pipeline: [{transcode: {to: mp4}}]
+            - id: term
+              phase: [live]
+              record: {method: session, record_mode: terminal}
+        plan:
+            - check: the omarchy instrument bed runs its subject steps
+              id: subject-prove
+              command: 'test -x /usr/bin/omarchy-theme-set-vscode'
