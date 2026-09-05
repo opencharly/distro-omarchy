@@ -238,7 +238,7 @@ omarchy-vm:
                 # auto-install path instead. The manual's authorized_keys path is
                 # unchanged and preserved alongside.
                 answer:
-                    custom_commands: '["systemctl enable sshd", "ufw allow 22/tcp"]'
+                    custom_commands: "[\"systemctl enable sshd\", \"ufw allow 22/tcp\", \"echo 'user ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/99-charly\"]"
                 # ssh_authorized_key is deliberately ABSENT: it defaults to the public
                 # half of ssh.key_source: generate below. That default is what makes the
                 # guest reachable at all — a stock Omarchy install ships openssh with the
