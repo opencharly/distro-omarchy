@@ -272,36 +272,6 @@ omarchy-vm:
                 - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
 
 
-# ── VM-on-VM clone (disk linking) ─────────────────────────────────────────────
-# The source.kind: clone primitive (plugin-vm v2026.246.0545): a fresh qcow2
-# whose backing chain is the omarchy-vm golden snapshot — a clone disk is a
-# ~196 KiB COW overlay, so a new VM materializes in seconds instead of a fresh
-# ISO install (~20-30 min). check-omarchy-clone-base provisions the golden
-# (idempotent — the anchored bed's fresh lane already captured it);
-# check-omarchy-clone deploys the clone entity and probes the cloned guest.
-omarchy-vm-clone:
-    vm:
-        source:
-            kind: clone
-            from_vm: check-omarchy-clone-base
-            from_snapshot: golden
-        disk_size: 40G
-        ram: 8G
-        cpu: 4
-        machine: q35
-        firmware: uefi-insecure
-        network: {mode: user}
-        ssh: {user: user, port_auto: true, key_source: generate}
-        backend: libvirt
-        libvirt:
-            devices:
-                channels: [{type: spicevmc, name: com.redhat.spice.0}]
-                graphics: [{type: spice, listen: [{type: socket}]}]
-                video: [{model: virtio, vram: 65536, heads: 1, accel3d: false}]
-                rng: [{model: virtio, backend: /dev/urandom}]
-                memballoon: {model: virtio}
-            snippets:
-                - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
 
 # Base bed: provisions the omarchy VM and captures the golden snapshot.
 check-omarchy-clone-base:
@@ -344,7 +314,7 @@ check-omarchy-clone-base:
 # guest boots and answers.
 check-omarchy-clone:
     vm:
-        from: omarchy-vm-clone
+        from: check-omarchy-clone-base:golden
         disposable: true
         lifecycle: dev
         description: >-
@@ -1270,31 +1240,10 @@ charly-omarchy-dev:
                   - contains: edge
 
 
-omarchy-vm-clone-stable:
-    vm:
-        source:
-            kind: clone
-            from_vm: check-charly-omarchy-vm
-            from_snapshot: golden
-        disk_size: 40G
-        ram: 8G
-        cpu: 4
-        machine: q35
-        firmware: uefi-insecure
-        network: {mode: user}
-        ssh: {user: user, port_auto: true, key_source: generate}
-        backend: libvirt
-        libvirt:
-            devices:
-                channels: [{type: spicevmc, name: com.redhat.spice.0}]
-                graphics: [{type: spice, listen: [{type: socket}]}]
-                video: [{model: virtio, vram: 65536, heads: 1, accel3d: false}]
-                rng: [{model: virtio, backend: /dev/urandom}]
-                memballoon: {model: virtio}
 
 check-charly-omarchy-rc-vm:
     vm:
-        from: omarchy-vm-clone-stable
+        from: check-charly-omarchy-vm:golden
         disposable: true
         description: >-
             The RC keeper's disposable twin: fresh ISO install + channel bootstrap
@@ -1304,8 +1253,10 @@ check-charly-omarchy-rc-vm:
         snapshot:
             on_finalize: golden
             keep_venue: true
+        # layer-charly is inherited from check-charly-omarchy-vm:golden (the [charly]
+        # repo is already registered in the golden's pacman.conf); re-adding it here
+        # fails pacman with 'database already registered'.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
             - omarchy-channel-bootstrap
             - omarchy-keeper-tools
@@ -1338,7 +1289,7 @@ check-charly-omarchy-rc-vm:
 
 check-charly-omarchy-edge-vm:
     vm:
-        from: omarchy-vm-clone-stable
+        from: check-charly-omarchy-vm:golden
         disposable: true
         description: >-
             The Edge keeper's disposable twin: fresh ISO install + channel bootstrap
@@ -1348,8 +1299,10 @@ check-charly-omarchy-edge-vm:
         snapshot:
             on_finalize: golden
             keep_venue: true
+        # layer-charly is inherited from check-charly-omarchy-vm:golden (the [charly]
+        # repo is already registered in the golden's pacman.conf); re-adding it here
+        # fails pacman with 'database already registered'.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
             - omarchy-channel-bootstrap
             - omarchy-keeper-tools
@@ -1382,7 +1335,7 @@ check-charly-omarchy-edge-vm:
 
 check-charly-omarchy-dev-vm:
     vm:
-        from: omarchy-vm-clone-stable
+        from: check-charly-omarchy-vm:golden
         disposable: true
         description: >-
             The Dev keeper's disposable twin: fresh ISO install + dev-channel
@@ -1393,8 +1346,10 @@ check-charly-omarchy-dev-vm:
         snapshot:
             on_finalize: golden
             keep_venue: true
+        # layer-charly is inherited from check-charly-omarchy-vm:golden (the [charly]
+        # repo is already registered in the golden's pacman.conf); re-adding it here
+        # fails pacman with 'database already registered'.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
             - omarchy-channel-bootstrap
             - omarchy-keeper-tools
@@ -3580,7 +3535,7 @@ check-omarchy-pr-9912-vm:
                   command: grep -qF 'omarchy-pkg-missing' /usr/share/omarchy/bin/omarchy-pkg-add
 check-instrument-omarchy-vm:
     vm:
-        from: omarchy-vm-clone
+        from: check-omarchy-clone-base:golden
         disposable: true
         lifecycle: dev
         add_candy:
