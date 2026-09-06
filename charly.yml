@@ -3586,6 +3586,22 @@ check-instrument-omarchy-vm:
         add_candy:
             - '@github.com/opencharly/layer-tmux:v2026.240.0202'
             - '@github.com/opencharly/layer-asciinema:v2026.246.1622'
+            # The instrument verbs' serving plugins, declared EXPLICITLY (the bed knows
+            # which instruments it runs — core never maps a verb to a plugin). These are
+            # HOST-side plugin candies: they land in the plugin registry scan so the
+            # instrument live-start + evidence phase dispatch resolve, and their own
+            # deploy plans are benign deterministic checks.
+            - '@github.com/opencharly/plugin-spice/candy/plugin-spice:v2026.248.2114'
+            - '@github.com/opencharly/plugin-record/candy/plugin-record:v2026.248.1204'
+            - '@github.com/opencharly/plugin-media/candy/plugin-media:v2026.248.2115'
+        # update_gate: skip — the instruments are [live]-only (they do not span the
+        # rebuild), and the omarchy clone's full destroy+recreate stalls at the
+        # initramfs hibernate/resume attempt after the force-stop (RCA 2026-09-06:
+        # "Failed to open encryption mapping ... is not a LUKS volume" — sshd never
+        # comes up, wait-for-sshd times out). The rebuild-segment proof is a separate
+        # bed (plan A-task-5). Follow-up: plugin-deploy-vm vmRebuild should power off
+        # the guest cleanly (via ssh) before `vm destroy`.
+        update_gate: skip
         instrument:
             - id: screen
               phase: [live]
