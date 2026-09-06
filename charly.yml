@@ -1253,8 +1253,10 @@ check-charly-omarchy-rc-vm:
         snapshot:
             on_finalize: golden
             keep_venue: true
+        # layer-charly is inherited from check-charly-omarchy-vm:golden (the [charly]
+        # repo is already registered in the golden's pacman.conf); re-adding it here
+        # fails pacman with 'database already registered'.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
             - omarchy-channel-bootstrap
             - omarchy-keeper-tools
@@ -1297,8 +1299,10 @@ check-charly-omarchy-edge-vm:
         snapshot:
             on_finalize: golden
             keep_venue: true
+        # layer-charly is inherited from check-charly-omarchy-vm:golden (the [charly]
+        # repo is already registered in the golden's pacman.conf); re-adding it here
+        # fails pacman with 'database already registered'.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
             - omarchy-channel-bootstrap
             - omarchy-keeper-tools
@@ -1342,8 +1346,10 @@ check-charly-omarchy-dev-vm:
         snapshot:
             on_finalize: golden
             keep_venue: true
+        # layer-charly is inherited from check-charly-omarchy-vm:golden (the [charly]
+        # repo is already registered in the golden's pacman.conf); re-adding it here
+        # fails pacman with 'database already registered'.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
             - omarchy-autologin
             - omarchy-channel-bootstrap
             - omarchy-keeper-tools
