@@ -19,7 +19,7 @@
 #  All 148 base packages resolve with plain pacman (23 from [omarchy], 125 from
 #  core/extra/multilib served by Omarchy's mirror snapshot), which is why the base box is
 #  `build: [pac]` with NO aur builder.
-version: 2026.248.1030
+version: 2026.249.2125
 repo: github.com/opencharly/distro-omarchy
 defaults:
     platform:
@@ -34,7 +34,7 @@ defaults:
 import:
     # The Arch base and builder stack lives in opencharly/distro-arch. One-directional:
     # arch imports nothing back.
-    - arch: '@github.com/opencharly/distro-arch:v2026.241.1429'
+    - arch: '@github.com/opencharly/distro-arch:v2026.250.0229'
 discover:
     - path: box
       recursive: true
