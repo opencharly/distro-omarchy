@@ -514,7 +514,10 @@ omarchy-eval-lane-skill:
         family: distros
         owner: omarchy-eval
         description: |-
-            |
+            The omarchy PR-eval lane contract - the standing rules, the class-based
+            per-PR config template, the full loop and the work-lane schema. The binding
+            single source for the eval lane; use before planning, running, grading, or
+            disputing an evaluation.
         content: |-
             
             
