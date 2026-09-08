@@ -218,3 +218,975 @@ omarchy-eval-skill:
             - Assert the SERVES not the RUNS (quickshell: ping reads responses;
               a supervisor uptime can pass on a wait wrapper).
             - PR-body claims are claims, not facts.
+
+omarchy-eval-cold-reader-skill:
+    skill:
+        name: omarchy-eval-cold-reader
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The cold-reader rubric: artifacts-only grading, SUBJECT + PROCESS verdicts, the deep-eval tool protocol. Use before finalizing any eval result.
+        content: |-
+            
+            
+            ## COLD-READER RUBRIC (M6, permanent) — the grading contract for every eval result
+            
+            A cold read is a FRESH-CONTEXT validation of the eval evidence (the report + the media
+            + the ledger) against the criteria. It issues TWO verdicts:
+            
+            - **SUBJECT** (about the PR): PASS (verified working on a live system) / FAIL
+              (verified not working) / NO VALIDATION. Any "might work" framing for untested live
+              behavior is STRICTLY FORBIDDEN.
+            - **PROCESS** (about the eval itself): every PR-specific check known-red (probe FAIL
+              exit 2 observed), tier compliance (system PRs on the live VM), claims scoped to the
+              tier, media non-empty AND showing the commands, Assisted-by footer present. Any
+              process defect = REDO-PROCESS (setup update + full re-run), never a posted report.
+            
+            ### The vision-deterministic cross-check (mandatory, the GNOME trap)
+            
+            The vision model can mislabel the desktop (Hyprland+Quickshell repeatedly called
+            "GNOME"). Every material vision claim MUST be corroborated by a deterministic source:
+            the .cast text, the wl:/spice:/record: verb outputs, or the config. A vision claim
+            without corroboration is a PROCESS finding.
+            
+            ### The deep-eval tool protocol (the reading lanes)
+            
+            The reader walks FOUR lanes for every eval:
+            
+            - **PR code lane:** pi.read/pi.grep on the PR diff — markers are diff-added, paths
+              proven-landing, the visual/class decision holds.
+            - **Check-results lane:** the run's summary.yml phases + per-check verdicts — the
+              evidence for every process criterion.
+            - **.cast lane (the terminal-lane truth):** ALWAYS read — exact commands, exit codes,
+              timestamps.
+            - **Vision lane:** vision_ask/pi.read on SPICE frames + the GIF; ffmpeg frames from
+              screen.mp4 — every material vision claim corroborated by the .cast/wl/spice text,
+              never trusted alone.
+            
+            ### The adversarial self-test (performed whenever the rubric changes)
+            
+            Feed the reader deliberately MISLABELED frames (e.g., a real GNOME-desktop screenshot
+            labeled as the omarchy eval output, or the Hyprland desktop labeled "boot failure") +
+            verify the reader flags the mismatch via the deterministic cross-check. A reader that
+            accepts a mislabeled frame without a PROCESS finding FAILS the self-test.
+            
+            ### Calibration (one past-report re-audit)
+            
+            Re-audit one previously finalized eval (from eval/) with the current rubric; the
+            audit's verdict (PASS/FAIL-of-process) is recorded in the findings ledger as the
+            calibration baseline.
+            
+            ### The judge rule (cold-reader) — the media review scope
+            
+            - **ALWAYS** read the `.cast` (the terminal-lane truth: exact commands, exit codes,
+              timestamps).
+            - **MP4 review ON DEMAND only:** review the `screen.mp4` (frames via ffmpeg +
+              vision_ask) ONLY when the plan's `visual:` flag is true (the PR's diff touches the
+              desktop UI — panels, notifications, themes, overlays, animations) or the diff clearly
+              implies visual change. A non-visual PR (config/scripts/docs) never needs the mp4 —
+              the .cast + check results suffice.
+            - Every material vision claim is corroborated by a deterministic source (the
+              .cast/wl/spice text) — the GNOME-mislabel trap applies to mp4 frames too.
+            
+            The three-artifact media contract that produces .cast/.gif/screen.mp4:
+            `references/media-contract.md`.
+            
+            ### Per-eval stats contract (every batch, every lane)
+            
+            Every eval run gets a DEDICATED stats file — exact measurements, one file per eval:
+            
+            - Path: `eval/evidence/batch-<batch>/stats/<pr>-stats.md` (the matrix is the
+              aggregate; the stats files are the per-run records).
+            - Content: run calver, the verdict line verbatim, EVERY phase (name + duration_seconds
+              + ok) from the run's summary.yml, total_seconds, plus timestamps (the run dir mtimes
+              / log times).
+            - The supervisor/batch owner EMITS the file when each run concludes (before the
+              aggregate matrix) — never after a batch restart that would blur the runs.
+            
+            ### RCA stats-signature discipline
+            
+            Whatever is suspected MUST show up in the per-eval stats:
+            
+            - Every hypothesis declares its STATS SIGNATURE before testing (e.g. 'the media steps
+              are the cost' ⇒ the stats' media-window rows must sum large; 'the deploy machinery
+              serializes' ⇒ deploy-add grows with the concurrent lane count in the A/B; 'the update
+              recreate is the cost' ⇒ the update+rebuild rows dominate).
+            - The stats files carry BOTH the phase rows (summary.yml) AND the media-window rows
+              (artifact mtimes — currently the only precise inner-step timing source) until the
+              charly enhancement lands (summary.yml gains the check-live inner step durations —
+              queued in the plugin-check pipeline).
+            - A hypothesis without its signature in the stats is NOT a finding.
+
+omarchy-eval-full-loop-skill:
+    skill:
+        name: omarchy-eval-full-loop
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The full loop: every stage grades the previous stage and can trigger a change (redo-plan/redo-run/redo-read/escalate; the runner CONFIG AUDIT; the loop guard). Use when orchestrating or disputing an eval.
+        content: |-
+            
+            
+            # The full loop — every stage grades the previous stage, any stage can trigger a change
+            
+            ## FAIL-HARD CONTRACT (binding)
+            Any stage that encounters a failure — runtime, config, evidence-shaped, lock, build — MUST FAIL HARD: stop, preserve evidence, write the RCA-ready failure block, and report failure. NO idling, NO silent continuation, NO retry-without-RCA, NO invented progress. Every failure report is a first-class finding for RCA. The CONFIG AUDIT must include a RUNTIME verification (a real vm-build/probe launch), not only file-shape checks — a config that validates but fails at runtime is a hard FAIL.
+            
+            The lane is not a one-way pipe: EVERY stage fully evaluates the work of the agent BEFORE
+            it and can TRIGGER A CHANGE. The trigger is deterministic evidence, never opinion: a
+            dispute settles on the artifacts first, then a bounded council (supervisor-mediated,
+            2–3 advisors, one cross-exam — see the supervisor contract), then the owner decision in
+            the memo.
+            
+            ## Stage handoffs (the ledger rows)
+            
+            Each stage writes its verdict ON the previous stage's artifact into
+            `eval/evidence/<pr>-<calver>/stage-findings.yml`:
+            
+            ```yaml
+            stage: <oracle|runner|cold-reader>
+            grading: <the stage whose work is being graded>
+            verdict: ok | needs-change
+            findings:               # every finding: evidence reference + proposed trigger
+              - {id, severity, evidence, trigger}
+            trigger: none | redo-plan | redo-run | redo-read | escalate
+            ```
+            
+            ## The triggers
+            
+            | Trigger | Meaning | Next action |
+            |---|---|---|
+            | `redo-plan` | The CONFIG/CHECKS do not set the PR up for a proper eval (wrong marker, non-known-red check, invalid path, missing media loop step, wrong channel base, wrong sizing, missing pr-apply seam) | The config-oracle RE-AUTHORS `pr-beds/pr-<N>/charly.yml` incorporating the findings (a real diff — re-emitting the identical config is a loop-guard violation), `charly box validate` green, then the runner re-runs probe → eval → evidence → cold-read |
+            | `redo-run` | The bed/config is sound but the run failed (infra, lock, timeout, media pull failure) | The runner re-runs probe → eval on the SAME config after the infra RCA |
+            | `redo-read` | The cold-read's own evidence was incomplete (e.g. media not assembled before grading, a lane missing) | The runner completes EVIDENCE, then the cold-reader re-reads |
+            | `escalate` | Loop guard reached: ≥3 REDO entrances for one PR, or a dispute whose council does not settle | The supervisor escalates to the operator with the full finding chain — NEVER a silent re-run |
+            
+            A finding CLOSES only with a setup change + re-run evidence (the trigger's next action must
+            have executed). An empty re-run with no config/cause change is forbidden (B14).
+            
+            ## The runner's CONFIG AUDIT (grades the oracle) — runs BEFORE and AFTER the beds
+            
+            Before RED-PROBE, and again after the EVAL, the runner audits the authored bed; ANY
+            failure here is a `redo-plan` trigger, never a silent eval on a defective config:
+            
+            1. **pr-apply seam present** in the eval bed (the ONE `pr-apply <N> <sha> <files...>` step).
+            2. **Every PR-specific behavior check is present** in BOTH beds (eval + probe twin), each
+               with a known-red justification: the marker is a **diff-ADDED token** (verified against
+            the base) at a **proven-landing path** (bin/, shell/, migrations/ or verified post-apply).
+            3. **The FULL record:/spice: evidence loop present** in the eval bed (rec-start,
+               rec-spice-start, rec-drive, rec-screen-spice, rec-spice-stop, rec-stop, rec-gif,
+               rec-mp4) — a bed without both recording lanes is not a proper eval (rule 6).
+            4. **add_candy has ONLY the record + spice plugin provider candies** (verbs register at
+               check-run time; baking them failed historically).
+            5. **The clone entity points at the PR's CHANNEL golden** (stable base-inst / rc / edge /
+               dev keeper) and carries the lean shape **ram 2G / cpu 1** (GPU-class PRs:
+               `requires_exclusive: [nvidia-gpu]`, SERIAL).
+            6. **charly box validate green** on the authored tree.
+            
+            ## The cold-reader's PROCESS verdict (grades the runner AND the oracle)
+            
+            On top of SUBJECT (PASS/FAIL/NO VALIDATION), the PROCESS verdict maps findings to
+            triggers:
+            
+            - config fit (the CONFIG AUDIT items, re-verified from the artifacts) → `redo-plan`
+            - known-red / tier compliance / media quality (both lanes, non-empty, gradable) →
+              `redo-plan` or `redo-read` (media incomplete → redo-read)
+            - timing in budget (expected-phase vs measured) → finding, `none` unless budget-busting
+              indicates a wrong-tier config → `redo-plan`
+            
+            An ACCEPT (report finalize/post path) requires: SUBJECT valid, PROCESS clean (or all
+            findings dispositioned), trigger `none` or `escalate` resolved by the operator.
+            
+            ## The loop guard (supervisor)
+            
+            - Track REDO entrances per PR in the ledger (stage-findings.yml rows + the lane board).
+            - ≥3 redo entrances for one PR → `escalate` (council, then the owner decision) — never
+              silent re-run.
+            - Every redo round must carry the finding evidence + the config/cause diff; identical
+              re-emission is a guard violation and a supervisor finding.
+            
+            The loop contract is the single source: agents and skills point here, never restate.
+
+omarchy-eval-golden-skill:
+    skill:
+        name: omarchy-eval-golden
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The golden VM chain runbook: provision/re-provision dual-state, golden-presence gates, per-PR clones, head-freshness. Use before any golden work.
+        content: |-
+            
+            
+            # Golden mechanics — the ONE golden-backed lane, provision, keepers, clones
+            
+            ## The ONE eval lane — golden-backed VM (mandatory, R5)
+            
+            The ONLY PR eval lane is the golden-backed VM: a linked-disk clone of the channel
+            INSTRUMENTED golden (or the eval-base-inst golden), with the PR applied at runtime via
+            the single pr-apply seam + the record/spice evidence loop. GPU passthrough is added
+            ONLY for GPU-class PRs (`requires_exclusive: [nvidia-gpu]`, serial). Everything else
+            is cut: no fresh ISO installs per PR (S6), no pod-only evals for system-behavior PRs.
+            A system-behavior PR without the live VM lane gets NO VALIDATION, never a
+            container-claimed pass. Base provenance is the GOLDEN SNAPSHOT (channel + snapshot
+            id/sha256), not the installer version.
+            
+            ### Purpose-built VM configs — match the PR's hardware class (MANDATORY)
+            
+            An eval of a HARDWARE-dependent PR on a box WITHOUT that hardware is useless — the
+            eval config must match what the PR exercises. Every PR is classified BEFORE its bed is
+            chosen:
+            
+            | PR | Subject | Hardware class | VM config |
+            |---|---|---|---|
+            | #9332 | hybrid GPU switching (supergfxctl → cardwire) | **GPU — the REAL cardwire GPU switching needs the passed-through GPU** | `omarchy-vm-clone-gpu` (clone + `requires_exclusive: [nvidia-gpu]`, SERIAL — one GPU) |
+            | #9893 | low-space update errors (Btrfs snapshot boot detection) | software | `omarchy-vm-clone` (lean) |
+            | #9894 | Tailscale panel reconnect | software | `omarchy-vm-clone` (lean) |
+            | #9906 | Flatpak desktop entries | software | `omarchy-vm-clone` (lean) |
+            | #9912 | `omarchy pkg add` group-aware | software | `omarchy-vm-clone` (lean) |
+            | #9917 | terminal launch speed | software | `omarchy-vm-clone` (lean) |
+            | #9921 | SUPER+A select-all keybinding | software | `omarchy-vm-clone` (lean) |
+            | #9923 | network panel split-brain | software | `omarchy-vm-clone` (lean) |
+            
+            - **Lean class (software PRs):** `omarchy-vm-clone-<N>` — the clone (COW overlay on the
+              golden), **no GPU**, ram 2G / cpu 1 (the committed per-PR beds are the record) — runs
+              MANY in PARALLEL, ONE EVAL LANE PER CPU CORE by default (concurrency = nproc, capped
+              so 2G × lanes ≤ host RAM); each VM starts from the golden, no rebuild. A GPU-less
+              eval of a software PR is correct AND the fastest possible.
+            - **GPU class (GPU PRs):** `omarchy-vm-clone-gpu` — the same clone PLUS the NVIDIA
+              GPU passthrough (`requires_exclusive: [nvidia-gpu]`, the whole-IOMMU-group hostdev
+              auto-allocated by `charly vm create`). The REAL cardwire GPU switching is only
+              meaningful here. SERIAL — one GPU, one such eval at a time. Classify the PR first;
+              NEVER evaluate a GPU PR on a lean box (the behavior is hardware-bound → the eval is
+              worthless).
+            
+            ## The per-PR clone + RED-PROBE twins
+            
+            Per PR: `charly check run check-omarchy-pr-<N>-vm-probe` (RED-PROBE: same checks, NO
+            apply — must FAIL, exit 2) then `charly check run check-omarchy-pr-<N>-vm` (the eval —
+            linked-disk lane from the channel INSTRUMENTED golden; NO `--anchor`, NO snapshot on
+            eval beds; the clone overlay dies with the run). The runner recovers orphans between
+            them. The VM is a COW overlay on the immutable golden — vm-create ≈ 3-4 s vs the fresh
+            ISO install ≈ 20-30 min; nothing is reverted because the golden is never written.
+            
+            The clone entity + the eval/probe bed shape (the one-line pr-apply step, the
+            plugin-provider-only `add_candy`, the unique known-red check ids) are authored by the
+            config-oracle from the ORACLE TEMPLATE (§Template) — see `references/oracle-rules.md`.
+            
+            ## Provision / re-provision — the dual state (charly store snapshot + libvirt metadata)
+            
+            The golden exists in TWO states that must BOTH be verified:
+            
+            - The **charly store snapshot** (channel + snapshot id/sha256): the golden sha256
+              sidecar keys staleness — a re-provisioned golden invalidates every older verdict.
+            - The **libvirt external-snapshot metadata**: `snapshots/golden/disk.qcow2` +
+              `meta.json`. Destroying the VM that holds the only external golden removes the
+              disk — only meta.json survives.
+            
+            Re-provision = **delete-before-recapture**: the old golden is deleted, then recaptured
+            capture-declared (~2 min). The golden must SURVIVE a failed capture run — a failed
+            capture run must not destroy it (RCA #7); the runner verifies golden presence post-run.
+            
+            ### Golden keeper-run protocol (obligatory after any golden refresh)
+            
+            1. Verify the capture: `snapshots/golden/disk.qcow2` EXISTS with a nonzero size.
+            2. THEN `charly check stop` + destroy the base-inst VM — a refresh run that leaves its
+               VM running holds a WRITE LOCK on the fresh golden (stop-domain-after-capture); the
+               external goldens are re-capturable (~2 min).
+            3. BATCH PREFLIGHT: before ANY batch, verify the golden disk's presence — a missing
+               golden fails every clone's vm-create with 'Failed to get shared write lock'.
+               **Missing golden = BLOCK: no batch starts.**
+            4. Never destroy a VM while it holds the only external golden without re-capturing
+               first.
+            
+            ### Head-freshness rule (mandatory)
+            
+            The plan's headSha must equal the LIVE PR head (`gh api repos/omacom/omarchy/pulls/<N>`)
+            — checked BEFORE any run. On drift (the branch was rebased/force-pushed), REGENERATE
+            the plan + bed to the live head FIRST (verify the marker is still in the new head's
+            added lines via the diff), never run a stale pin. A fetch-by-PR-ref only brings the
+            live head's objects — an orphaned pinned commit's tree is unreachable in the guest
+            (`unable to read tree`). The oracle re-validates head freshness at authoring; the
+            runner re-checks the triple (plan ↔ bed ↔ live head) at launch.
+
+omarchy-eval-lane-skill:
+    skill:
+        name: omarchy-eval-lane
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The omarchy PR-eval lane contract - the standing rules, the class-based
+            per-PR config template, the full loop and the work-lane schema. The binding
+            single source for the eval lane; use before planning, running, grading, or
+            disputing an evaluation.
+        content: |-
+            
+            
+            # PR-eval lane — per-channel snapshot bases
+            
+            **Status:** OPERATIONAL — the stable hand-authored `charly.yml` holds only the VM
+            template + golden bases + the shared clone; per-PR evals are oracle-generated
+            (`pr-beds/pr-<N>/`): RED-PROBE (must FAIL) then the eval (linked-disk lane on the
+            instrumented golden; NO `--anchor`, NO snapshot; the clone overlay dies with the
+            run). Channel bases for rc/edge/dev follow the same instrumented-golden seam.
+            
+            ## Goal
+            
+            Evaluate omacom/omarchy PRs the way **another user would** — apply the PR to a real
+            omarchy system, use it, and report what happened — on disposable test environments,
+            without a fresh install (~20-30 min) per PR: one base VM per omarchy update channel
+            (stable / rc / edge / dev), each clean-snapshotted, per-PR revert → apply → check →
+            evidence → revert.
+            
+            ## The lane state machine (all reuse — no new tooling)
+            
+            - **Base:** the omarchy VM is built from the latest omarchy installer + create/start +
+              settle; VM deployments already take a clean snapshot when they finish — *that snapshot IS the clean base*.
+            
+            - **Channels:** rc/edge/dev bases are the stable base + switch the update channel +
+              run the update; the dev base additionally hosts the `~/omarchy` source checkout (the
+              channel binds the OS to it) — the PRIMARY upstream-code lane: a PR is applied by
+              checking out its head there.
+            - **Per PR:** `charly check run check-omarchy-pr-<N>-vm-probe` (RED-PROBE: same checks,
+              NO apply — must FAIL, exit 2) then `charly check run check-omarchy-pr-<N>-vm` (the
+              eval — linked-disk lane from the channel INSTRUMENTED golden; NO `--anchor`, NO
+              snapshot on eval beds; the clone overlay dies with the run). The runner recovers
+              orphans between them. Nothing is reverted because the golden is never written.
+            - **Parallel batch (lean PRs):** lean evals launch CONCURRENTLY (one per PR, each its
+              own .check lock + domain + COW overlay); the only host limits are RAM (4G/VM) and
+              vCPU (4/VM). The GPU-class eval runs alone (SERIAL).
+            
+            Hardware-class VM configs + the full golden mechanics: `.agents/skills/omarchy-eval-golden/SKILL.md`.
+            Batch/concurrency sequencing: `.agents/skills/omarchy-eval-sequencing/SKILL.md`.
+            
+            ## Standing rules (every PR evaluation)
+            
+            1. **NEVER mock anything — ever.** A check that substitutes a fake tool for the real
+               one proves nothing about the PR. Every check must exercise the REAL tool, the REAL
+               system state, the REAL behavior; a behavior not testable with the current tier's
+               real tools must be tested on the live VM tier (Tier-2) — or not claimed at all. An
+               evaluation that mocks is not an evaluation.
+            2. **Test like a user, not a validator.** Reports and posted comments are first-person:
+               what I did, what worked, what did not, what I could not do and why — with the full
+               evidence rigor kept (step matrix, per-check matrix, findings tied to evidence).
+               Every report is rendered from `eval/PR-EVAL-TEMPLATE.md`.
+            3. **Assisted-by footer on every posted comment.**
+               `*Assisted-by: <Harness> <Provider Full Model Name> (<confidence>)*`.
+            4. **Install missing software in the test environment.** When a check fails or a test
+               environment cannot complete because a tool/package is missing, install it (extra
+               software package / install step, or the system's own package installer) and re-run
+               BEFORE declaring "couldn't be tested". Only a genuinely impossible install (package
+               in no reachable repository) stays untested — with the exact blocker documented.
+               (Canonical case: pr-9332's cardwire gap — the install is tried first.)
+            5. **Test to the maximum extent possible — on a live system.** Run every applicable
+               test environment (container, VM, visual, GPU when hardware is available), exercise
+               the PR's own "## Verification" claims, and probe edge cases (idempotence, failure
+               paths, clean-install vs upgrade). A PR whose core behavior is system-level
+               (hardware switching, filesystem/snapshot behavior, session environment, network
+               state, keybindings, service behavior) MUST be tested on a live omarchy VM (Tier-2),
+               never only in a container — a wrong-tier eval is a HARD FAIL, never a soft pass. Do
+               not stop at the first green check.
+            6. **Record every evaluation — both lanes.** Every PR evaluation produces a terminal
+               asciinema `.cast` AND a full-screen video, saved to the gitignored
+               `media/<pr>-<calver>/`. Check output must be surfaced on the system's desktop AND
+               visible in the recording frames (checks-visible-in-recordings rule). Media
+               contract: `.agents/skills/omarchy-eval-media/SKILL.md`.
+            7. **Create reusable software packages when software is missing.** When a PR needs
+               software or tooling that does not exist yet, create a small reusable package for it
+               — scaffold with the scaffolding tool; a description + at least one automated check
+               each; one generic package per concern — so future evaluations reuse it instead of
+               re-installing ad hoc.
+            8. **Triage before authoring a validation.** Before creating a per-PR test
+               environment, decide whether the PR is worth evaluating at all:
+               - **Is the PR useful?** Does it fix a real, user-visible problem (PR body + linked
+                 issues), or is it trivial, duplicative, superseded, or WIP / "do not merge"? A PR
+                 that is not useful gets a short triage note, not a validation.
+               - **New insights?** Would the checks tell us something we do not already know? If
+                 the behavior is already covered with nothing new to measure, skip (or minimize).
+               - **Testable on the available hardware?** Hardware-bound classes (GPU passthrough,
+                 laptop hardware, fingerprint readers, and similar) that cannot be exercised are
+                 recorded as "couldn't be tested" with the reason — never a faked test
+                 environment, and no validation is authored for them.
+               - **Which tier proves the behavior?** A system-behavior PR must be routed to the
+                 live VM tier; if the live tier cannot run (no base VM), the PR gets a scoped
+                 partial eval or a triage note — never a container-only claim of live behavior.
+            9. **Every PR-specific check must fail without the PR (the known-red fixture).** A
+               check that passes on the base image without the PR proves nothing about the PR.
+               Each PR-specific check must be red (fail) when the PR is not applied — by
+               construction (it asserts a string, file, or behavior that only exists in the PR)
+               or by verification (run the checks against the base image without the PR candy and
+               confirm they fail). General sanity checks are allowed but must be labeled
+               non-PR-specific and never counted as PR proof.
+            10. **Every evaluation result is validated by a cold reader against the criteria.**
+                Before a report is finalized or a comment is posted, a fresh reader who did NOT
+                author the evaluation validates it: never mock, known-red (every PR-specific check
+                fails without the PR), tier compliance (system-behavior PRs on the live VM;
+                wrong-tier = FAIL), claims scoped to the tier, recordings non-empty and showing
+                the actual commands, Assisted-by footer present, triage
+                applied. The verdict is recorded in the report; a report that fails the cold read
+                is fixed, not posted. Rubric: `.agents/skills/omarchy-eval-cold-reader/SKILL.md`.
+            
+            ## The ONE eval lane — golden-backed VM (mandatory, R5)
+            
+            - **The ONLY PR eval lane is the golden-backed VM**: a linked-disk clone of the
+              channel INSTRUMENTED golden (or the eval-base-inst golden), with the PR applied at
+              runtime via the single pr-apply seam + the record/spice evidence loop. GPU
+              passthrough is added ONLY for GPU-class PRs (requires_exclusive: [nvidia-gpu],
+              serial). Everything else is cut: no fresh ISO installs per PR (S6), no pod-only
+              evals for system-behavior PRs. A system-behavior PR without the live VM lane gets
+              NO VALIDATION, never a container-claimed pass.
+            - Base provenance is the GOLDEN SNAPSHOT (channel + snapshot id/sha256), not the
+              installer version — the template's "Who ran this" reflects it (see
+              PR-EVAL-TEMPLATE.md).
+            - Provision/re-provision, keeper-run protocol, per-PR clone + RED-PROBE twins, head
+              freshness: `.agents/skills/omarchy-eval-golden/SKILL.md`.
+            
+            ## NO VALIDATION semantics
+            
+            The validation's purpose is binary: does it actually work? The only valid verdicts
+            are PASS (verified working on a live system) and FAIL (verified not working on a
+            live system). NO VALIDATION means the validation itself failed — it could not answer
+            the question because the core behavior could not be tested on a live system.
+            
+            **Strict prohibition:** any "might work" / "mostly works" / "it works" evaluation
+            that is NOT verified on a live system is **STRICTLY FORBIDDEN** — it fakes success
+            for something the validation could not test. A pod-only eval is NOT a validation: the
+            container tier cannot test live system behavior, so a container run of a
+            system-behavior PR proves nothing about the PR and must never be presented as a
+            validation. If the validation cannot test the thing on a live system, the validation
+            itself FAILS — the result is NO VALIDATION, and no report is produced. A container
+            run never becomes a live-behavior claim, and an untested live behavior never becomes
+            a pass or a fail — it becomes nothing.
+            
+            NO VALIDATION is a **LAST RESORT — never the default**: before that verdict is ever
+            written, the exhaustion ladder must be run (the PR's own test suites on the live
+            system, try to install the missing software for real, test the real behavior with the
+            real tools, and record a PARTIAL with the real evidence):
+            `.agents/skills/omarchy-eval-oracle/SKILL.md`.
+            
+            ## The ORACLE rules and tier routing (condensed — full detail in `.agents/skills/omarchy-eval-oracle/SKILL.md` and `.agents/skills/omarchy-eval-tiers/SKILL.md`)
+            
+            - **ORACLE marker rule (mandatory):** a PR-specific check marker MUST be a
+              **diff-ADDED token** (a string in the PR's added lines, never a word that
+              pre-exists in the base), verified against the base before the bed ships: a probe
+              that does NOT fail (exit 2) on the golden = **RED-PROBE-BROKEN = a PROCESS block** —
+              no eval is valid from that bed (S7).
+            - **ORACLE path rule (mandatory):** a check path must be from a **PROVEN-LANDING
+              class** (`bin/`, `shell/`, `migrations/` — verified by pr-apply) or verified
+              against the post-apply tree.
+            - **Tier routing rule:** a PR whose core behavior is system-level (hardware switching,
+              filesystem/snapshot behavior, session environment, network state, keybindings,
+              service behavior) MUST be evaluated on a live VM (Tier-2), not just the container —
+              the container tier alone is insufficient for these classes.
+            - Full detail: the apply seam + ORACLE TEMPLATE (§Template) + check-plan contract +
+              NO VALIDATION ladder → `.agents/skills/omarchy-eval-oracle/SKILL.md`; tier semantics + strict
+              prohibition + honesty about testing → `.agents/skills/omarchy-eval-tiers/SKILL.md`.
+            
+            ## The publication gate
+            
+            No report is finalized and no comment is posted until ALL hold:
+            
+            - **Cold-read validation passed** (standing rule 10): the verdict is recorded in the
+              report; a report that fails the cold read is fixed, not posted.
+            - **Process cleanliness:** any process defect (non-red probe, wrong tier, claim
+              scoped beyond the tier, media missing/empty or not showing the commands, footer or
+              footer missing) = **REDO-PROCESS** (setup update + full re-run), never a posted
+              report.
+            - **Evidence persisted:** `eval/evidence/<pr>-<calver>/summary.yml` + per-check logs
+              committed; recordings assembled in `media/<pr>-<calver>/` (gitignored).
+            
+            ## Index — where every topic lives
+            
+            | Topic | File |
+            |---|---|
+            | Standing rules 1–10 | this file |
+            | Tier semantics, routing rule, strict prohibition, honesty about testing | `.agents/skills/omarchy-eval-tiers/SKILL.md` |
+            | The apply seam (pr-apply), ORACLE TEMPLATE (§Template), ORACLE marker/path rules, check-plan contract, NO VALIDATION ladder | `.agents/skills/omarchy-eval-oracle/SKILL.md` |
+            | Orphan sequencing, HARD lane-sequencing gate, launch sequencing, run preflight, concurrency guidance (16/32-lane), host/guest responsibility split, expected-phase budget | `.agents/skills/omarchy-eval-sequencing/SKILL.md` |
+            | Checks-visible-in-recordings, THREE-artifact media contract, media-density rule, media assembly, media directory contract | `.agents/skills/omarchy-eval-media/SKILL.md` |
+            | ONE golden-backed lane mechanics, provision/re-provision dual-state, keeper-run protocol, per-PR clone + RED-PROBE twins, head freshness | `.agents/skills/omarchy-eval-golden/SKILL.md` |
+            | COLD-READER RUBRIC, vision-deterministic cross-check (GNOME trap), adversarial self-test, calibration, judge rule, per-eval stats contract, RCA stats-signature discipline, deep-eval tool protocol | `.agents/skills/omarchy-eval-cold-reader/SKILL.md` |
+            | Dated RCA narratives, experiments, measurements (archived) | `CHANGELOG/2026.250.1700.md` |
+
+omarchy-eval-media-skill:
+    skill:
+        name: omarchy-eval-media
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The mandatory record:/spice: evidence loop, media assembly into media/<pr>-<calver>/, and the three-artifact media contract. Use when running or grading eval evidence.
+        content: |-
+            
+            
+            # Media contract — recordings, artifacts, density, assembly
+            
+            ## Checks visible to the user AND in screen recordings (lane rule)
+            
+            Whenever an eval runs on a real test system, the check output MUST be surfaced live on
+            the system's desktop (desktop notifications and/or a visible terminal) AND captured in
+            the recording/screenshot frames — what the operator sees is what the recording shows.
+            Recordings and screenshots are graded (by an AI) for containing the on-screen check
+            output verbatim.
+            
+            ### The THREE-artifact media contract (mandatory, every eval)
+            
+            Every eval lane produces ALL THREE artifacts — no exceptions:
+            
+            1. **`.cast`** — the ascii screencast of the checks: `record: {method: start, record_mode:
+               terminal, record_name: <pr>}` → the drive step → `record: {method: stop, artifact:
+               …/pr-<N>.cast, artifact_min_bytes: 200}`.
+            2. **`.gif`** — the screencast rendered to an animated GIF (the record verb render
+               method).
+            3. **`screen.mp4`** — the SPICE OUTPUT as video via the shipped `spice: record` method
+               (plugin-spice v2026.245.1508+: the host-side MJPEG capture polls the display at fps,
+               default 5): `spice: {method: record, action: start, fps: 5}` BEFORE the drive, the
+               drive steps, then `spice: {method: record, action: stop, artifact: /tmp/pr-<N>.mjpeg,
+               artifact_min_bytes: 10000, artifact_not_uniform: true}` (an empty/static stream
+               honest-fails the validators). ONE `run:` step transcodes the MJPEG to MP4
+               (`ffmpeg -y -loglevel error -i /tmp/pr-<N>.mjpeg -c:v libx264 -pix_fmt yuv420p
+               /tmp/pr-<N>-screen.mp4`). Charly-native: no frame-assembly workarounds — the capture
+               IS the spice video stream; the ffmpeg step only relabels containers.
+            
+            The record:/spice: check steps pull every artifact onto the host (the `.cast`, the
+            `.gif` via the record plugin's gif method, SPICE frames/video); the EVAL RUNNER agent
+            then assembles them into the gitignored `media/<pr>-<calver>/` (pi file tools — no
+            scripts) and the COLD READER grades them (vision_ask on the frames + the deterministic
+            .cast text). Standing rule 6: every evaluation produces a terminal .cast AND a screen
+            recording.
+            
+            ### Media-density rule (visual-class only)
+            
+            The SPICE-VIDEO artifacts (spice: record start/stop + the mp4 transcode) are produced
+            ONLY for `visual: true` plans (the judge rule). NON-visual beds keep the .cast + .gif
+            + the SPICE screenshot + the deterministic checks — the mp4 is reviewable on demand for
+            visual PRs only. The probe beds carry NO media loop at all (red-by-construction needs
+            the greps only).
+            
+            ### The media assembly (the artifacts land in /tmp, the mp4 transcode is an assembly step)
+            
+            The launch chain MUST assemble the media after every run:
+            
+            `charly check run <bed> && mkdir -p media/<pr>-<calver> && cp /tmp/pr-<N>.{cast,gif,mjpeg,screen.png} media/<pr>-<calver>/ && ffmpeg -y -loglevel error -i media/<pr>-<calver>/pr-<N>.mjpeg -c:v libx264 -pix_fmt yuv420p media/<pr>-<calver>/pr-<N>.mp4`
+            
+            The mp4 is produced by the ASSEMBLY (the in-plan rec-mp4 run: step is skipped in
+            verify-only mode by design). media/ is gitignored; the cold-reader reads the .cast
+            always + the mp4 for visual-class PRs.
+            
+            ### The media directory contract (gitignored, creation-validated, used for validation)
+            
+            - **Location:** `eval-omarchy/media/<pr>-<calver>/` — GITIGNORED (the evidence lives on
+              disk, never in the tree; the PR carries the matrices + the stats, not the binaries).
+            - **Contents** (the three-artifact contract): `pr-<N>.cast` (the ascii screencast),
+              `pr-<N>.gif` (the cast render), `pr-<N>.mjpeg` (the spice-record MJPEG),
+              `pr-<N>.mp4` (the ffmpeg transcode), `pr-<N>-screen.png` (the SPICE frame).
+            - **Assembly:** the launch chain runs the assembly chain above; the in-plan rec-mp4 run:
+              step is verify-only-skipped — the transcode belongs in the assembly.
+            - **CREATION-VALIDATED by the runner:** after every run the runner verifies the 5
+              artifacts exist + are non-empty (`test -s` each; the .cast >= 200B, the .gif >= 1KB,
+              the .mjpeg >= 10KB, the .mp4 >= 10KB, the screen.png >= 1KB) — a missing/empty
+              artifact = a PROCESS finding (the media contract broken), reported with the run.
+            - **USED FOR VALIDATION by the cold-reader:** the .cast is ALWAYS read (the terminal-lane
+              truth); the mp4 frames (ffmpeg + vision_ask) are reviewed for visual-class PRs (the
+              plan's `visual:` flag); the gif/mjpeg corroborate the visual claims. A media artifact
+              that contradicts the checks = a finding.
+
+omarchy-eval-oracle-skill:
+    skill:
+        name: omarchy-eval-oracle
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The per-PR config the config-oracle authors: class/lean sizing, per-channel goldens, the ORACLE TEMPLATE, pr-apply seam, marker/path rules, known-red contract. Use before authoring a pr-beds/pr-<N>/charly.yml.
+        content: |-
+            
+            
+            # Oracle rules — the apply seam, the ORACLE TEMPLATE, the check-plan contract
+            
+            ## The apply seam — the ONE runtime seam (pr-apply), no nested templates
+            
+            The PR is applied at RUNTIME by the single helper `pr-apply <pr> <sha> <changed-files...>`
+            (candy/omarchy-pr-apply — the git-fetch block lives THERE and nowhere else; S9 guard:
+            `grep 'git fetch .* pull/'` matches only that candy). The helper is baked into the
+            instrumented golden, so the eval bed's apply step is exactly one line. Mutation lives in
+            candies (bed-plan `run:` steps are dead code in VM beds — RCA #2); the eval/probe beds
+            carry only `check:` steps.
+            
+            ## The check-plan contract (known-red + golden freshness)
+            
+            The probe proves known-red (S7) AND golden freshness; a probe that passes = stale golden
+            or a non-red check → re-provision the golden (delete-before-recapture; the golden must
+            survive — RCA #7: a failed capture run must not destroy it, the runner verifies golden
+            presence post-run).
+            
+            ## Purpose-built VM configs — match the PR's hardware class (MANDATORY)
+            
+            Every PR is classified BEFORE its bed is authored (Tier-0 venue ladder / lane tier
+            semantics). An eval of a HARDWARE-dependent PR on a box WITHOUT that hardware is useless:
+            
+            | PR | Subject | Hardware class | VM config |
+            |---|---|---|---|
+            | #9332 | hybrid GPU switching (supergfxctl → cardwire) | **GPU — the REAL cardwire GPU switching needs the passed-through GPU** | `check-omarchy-pr-<N>-vm` (drive) + `requires_exclusive: [nvidia-gpu]`, SERIAL (one GPU) |
+            | software PRs | (everything else, e.g. Btrfs/low-space, flatpak, keybindings, panels) | software | `check-omarchy-pr-<N>-vm` (drive, lean base) |
+            
+            - **Lean class (software PRs):** the clone (COW overlay on the golden), no GPU,
+              **ram 2G / cpu 1** (the committed per-PR beds are the record) — runs MANY in PARALLEL,
+              ONE EVAL LANE PER CPU CORE by default (concurrency = nproc, capped so 2G × lanes ≤
+              host RAM); each VM starts from the golden, no rebuild).
+            - **GPU class (GPU PRs):** the same clone PLUS the NVIDIA GPU passthrough
+              (`requires_exclusive: [nvidia-gpu]`, whole-IOMMU-group hostdev auto-allocated by
+              `charly vm create`, entity uses `backend: libvirt` + `firmware: uefi-insecure`).
+              SERIAL — one GPU, one such eval at a time. NEVER evaluate a GPU PR on a lean box.
+            - **A system-behavior PR evaluated only in a container is a HARD FAIL** (routing rule).
+            
+            ## Per-channel golden bases
+            
+            The lane is per-channel: the STABLE/current channel instrumented golden is
+            `check-omarchy-eval-base-inst` (charly + autologin + record tools incl. acpid + pr-apply
+            + pre-seeded eval heads + warmed cache, captured `on_finalize: golden`). The rc / edge /
+            dev channel bases live in the distro-omarchy import
+            (`check-charly-omarchy-{rc,edge,dev}-vm`, each the stable base + its channel bootstrap,
+            dev hosts the `~/omarchy` source checkout — the PRIMARY upstream-code lane). A PR's
+            channel is chosen from its base/diff; the clone drives `from: <channel-base>:golden`
+            and the report records channel + base provenance (channel, ISO calver, snapshot id).
+            
+            ## ORACLE TEMPLATE (§Template) — the canonical dedicated per-PR config
+            
+            The plan IS the per-PR config: the config-oracle analyses the PR (class, channel, tier,
+            changed files, `## Verification` claim, known-red markers) and authors
+            `pr-beds/pr-<N>/charly.yml` DIRECTLY (gate: `charly box validate`; NO hand-edits; no
+            `run:` steps — mutation lives in candies, RCA #2). No separate plan JSON: the charly.yml
+            is the single artifact (the M4-era `pr-plans/eval-plan-<N>.json` orchestrator files
+            were removed in the legacy cut — the charly.yml is the only plan artifact).
+            
+            > REDO-INFRA CLASS (measured 2026-08-08): a vm-build `Failed to get "write" lock`
+            > (the shared-overlay race between overlapping lanes) is an INFRA redo-run trigger,
+            > never a bed or oracle defect — re-gate the lane per the sequencing skill.
+            >
+            > RUNTIME-FIXED (measured 2026-08-08): the clone-ENTITY grammar (source.kind: clone +
+            > from_vm/from_snapshot/ram/cpu) VALIDATES but is REJECTED at RUNTIME vm-build on the
+            > current charly ("source.from_snapshot is required for clone" — the verification run
+            > failed at probe vm-build). The executable clone is the **from: <base>:<tag> DRIVE**;
+            > the drive INHERITS the shape from its target, so per-entity ram/cpu is impossible —
+            > the lean 2G/1cpu sizing lives on the BASE entity (`omarchy-vm` at ram 2G / cpu 1;
+            > all clones inherit it). PROBE beds carry NO media loop (media skill). The CONFIG
+            > AUDIT MUST include a RUNTIME check (a real vm-build launch), not only `charly box
+            > validate`.
+            
+            ```yaml
+            check-omarchy-pr-<N>-vm:
+                vm:
+                    from: <channel-base>:golden
+                    disposable: true
+                    lifecycle: dev
+                    add_candy:              # ONLY the plugin provider candies (verbs register at check-run time)
+                        - '@github.com/opencharly/plugin-record/candy/plugin-record:v2026.246.1624'
+                        - '@github.com/opencharly/plugin-spice/candy/plugin-spice:v2026.245.1508'
+                    plan:
+                        - check: apply PR #<N> via the single apply seam
+                          id: pr-apply
+                          context: [runtime]
+                          command: 'pr-apply <N> <sha> <file...>'
+                        # … the PR-specific behavior checks (every one known-red: diff-ADDED markers,
+                        #   proven-landing paths; ids unique) …
+                        # … the FULL record:/spice: evidence loop (mandatory, rule 6):
+                        #   rec-start (record: start) → rec-spice-start (spice: record) → rec-drive
+                        #   (record: run) → rec-screen-spice (spice: screenshot) → rec-spice-stop
+                        #   (spice: record stop → .mjpeg) → rec-stop (record: stop → .cast) →
+                        #   rec-gif (record: gif) → rec-mp4 (ffmpeg transcode) …
+            check-omarchy-pr-<N>-vm-probe:   # RED-PROBE twin: same checks, NO apply — must FAIL (exit 2)
+                vm:
+                    from: omarchy-vm-clone-<N>
+                    disposable: true
+                    lifecycle: dev
+                    add_candy: [plugin-record, plugin-spice pins]
+                    plan:
+                        # … the SAME PR-specific checks, no pr-apply step …
+            ```
+            
+            Media contract (rule 6): every evaluation produces a terminal asciinema `.cast` AND a
+            screen recording; the record: and spice: steps pull every artifact onto the host; the
+            EVAL RUNNER assembles them into the gitignored `media/<pr>-<calver>/` (pi file tools, no
+            scripts) and the COLD READER grades them (vision on the frames + the deterministic .cast
+            text).
+            
+            Expected-phase budget (per-PR ram/cpu/phase estimates feeding stage 3 anomaly detection)
+            belongs to the oracle's plan.
+            
+            The SUPERVISOR agent maintains the verdict ledger (the `.check/` summaries ARE the
+            data; the golden sha256 sidecar keys staleness — a re-provisioned golden invalidates
+            every older verdict). Unchanged heads are skipped by the supervisor's ledger; reports
+            render from `eval/PR-EVAL-TEMPLATE.md` with channel + base provenance. No scripts —
+            the agents read the native artifacts directly.
+            
+            ### The ORACLE marker rule (mandatory)
+            
+            A PR-specific check marker MUST be a **diff-ADDED token** (a string in the PR's added
+            lines, never a word that pre-exists in the base). Verified against the base before the
+            bed ships: a probe that does NOT fail (exit 2) on the golden = **RED-PROBE-BROKEN = a
+            PROCESS block** — no eval is valid from that bed (S7).
+            
+            ### The ORACLE path rule (mandatory)
+            
+            A check path must be from a **PROVEN-LANDING class** (`bin/`, `shell/`, `migrations/` —
+            verified by pr-apply) or verified against the post-apply tree. An `etc/` path that does
+            not land at its expected installed location makes the check path wrong by construction.
+            
+            ## NO VALIDATION is a LAST RESORT — never the default
+            
+            A report that says NO VALIDATION is an admission that the evaluation itself failed.
+            Before that verdict is ever written, ALL of these must have been exhausted, in order:
+            
+            1. **Run the PR's own test suites** (`test/cli`, `test/shell`, `test/shell.d/*`)
+               on the live system — the PR's own "## Verification" claims are the first thing to
+               measure, and they are almost always runnable.
+            2. **Try to install the missing software for real** (rule 4): the package repository,
+               AUR, the project's own releases. A tool that exists on AUR is installable — "not in
+               the omarchy repo" is NOT a blocker when AUR has it.
+            3. **Test the real behavior with the real tools** on the live VM (Tier-2): real pacman,
+               real df/findmnt, real config trees, real services. Script-level logic (detection,
+               fallbacks, error paths, install paths) is testable even when the full hardware cycle
+               is not.
+            4. **Record what WAS tested** — a PARTIAL verdict with the real evidence (which suites
+               passed, which real behaviors were measured, which branches were not triggered and
+               why) is always better than NO VALIDATION.
+            
+            Only a genuinely impossible test (hardware the machine does not have, a credential the
+            environment does not have, a package in no reachable repository) stays untested — with
+            the exact blocker documented. Canonical counter-example: pr-9332 was reported NO
+            VALIDATION because "cardwire is not in the omarchy package repository" — but cardwire
+            IS on AUR, the PR's own test suites run, and the scripts' real behavior (detection
+            fallback, install-path failure) is measurable. The re-evaluation found all of it.
+
+omarchy-eval-sequencing-skill:
+    skill:
+        name: omarchy-eval-sequencing
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            Lane sequencing: orphan discipline, launch ordering, concurrency (one lane per CPU core), lock and ssh-config lessons in standing form. Use when scheduling parallel eval lanes.
+        content: |-
+            
+            
+            # Lane sequencing — orphans, gates, launch, preflight, concurrency
+            
+            ## VM-BUILD OVERLAY WRITE-LOCK RACE — FIXED (shipped 2026-09-08)
+            The from:-drive clone build is now IDEMPOTENT: plugin-vm#29 + charly#569 (tag
+            v2026.251.1204) make `BuildClone` SKIP overlay creation when the target already
+            materializes the resolved snapshot, and the backing resolves to the SNAPSHOT-STORE disk
+            (`snapshots/<tag>/disk.qcow2`) opened READ-ONLY — the shared per-checkout overlay is
+            never rewritten by a build after the golden capture (the previous every-build rewrite
+            + read-write attach caused `Failed to get "write" lock` on overlapping lanes). PROVEN
+            by the 14/14 redo wave (2026-09-08, fixed binary 2026.251.1146): 8 concurrent probe
+            vm-builds with 5+ live sibling clones → zero lock incidents across all 28 lane logs;
+            eval vm-builds idempotent-skip at 1.5-2.7s. Belt-and-braces (cheap, never load-bearing
+            now): a lane still re-gates immediately before its own vm-build (sibling pids + fuser
+            on the golden disk); on a residual hit → REDO-INFRA for THAT lane (redo-run after the
+            holder finishes) — never a bed defect, never silent retry.
+            
+            ## FAIL-HARD CONTRACT (binding)
+            On ANY unexpected failure (runtime, config, infra, resolution error) the lane agent MUST: (1) STOP all further execution immediately — no partial continuation, no workaround, no blind retry; (2) preserve every piece of evidence (logs, summary.yml, exit codes, the failing step) in the checkpoint; (3) write an RCA-READY failure block: the exact error, the step, the bed/entity, expected vs observed, first hypothesis; (4) FAIL THE RUN LOUDLY — never idle, never claim waiting, never declare success on partial work. Idling or continuing past an unresolved failure is a contract violation; the parent RCA's every such report.
+            
+            ### The RUNNER orphan-sequencing rule (mandatory)
+            
+            A FAILED probe leaves the VM running "for debugging"; `charly check stop` releases the
+            flock but does NOT destroy the VM — the eval's clone vm-build collides on the overlay
+            write-lock. Sequence: probe verdict → `charly check stop` → `charly vm destroy
+            <entity> --domain <bed>` → eval.
+            
+            ### HARD lane-sequencing gate
+            
+            A batch may launch ONLY when ALL hold:
+            
+            1. ZERO live batch VMs (`ps aux | grep qemu-system | grep -oE 'guest=charly-check-omarchy-pr-[0-9]+-vm'`
+               = empty; the anchored residents are expected and budgeted).
+            2. ZERO in-flight `charly check run` processes for the batch beds.
+            3. The golden disk EXISTS (nonzero) and NO base-inst VM holds its lock.
+            4. RAM budget: lanes × 2G + residents + OS ≤ usable RAM; load1 < 20 before launch.
+            5. Between a stop and a relaunch: `charly check stop` each leftover run, THEN destroy
+               each VM (domstate check), THEN verify the count is zero.
+            6. The ugate/evidence or keeper-run VM must conclude before a measurement batch (shared
+               golden + shared host).
+            
+            ### Launch sequencing
+            
+            A wave launches ONLY after the lock table is verified clean:
+            
+            1. `ps aux | grep -cE '/charly/bin/charly check run'` == 0 (no live run procs).
+            2. No bed `.check/check-omarchy-pr-<N>-vm/.lock` is HELD (the flock, not just the file
+               — a stale file is free; a live holder blocks).
+            3. Then launch, THEN re-verify: the running unit count for the wave equals the expected
+               lane count.
+            
+            ### Run preflight — the stale ssh-fragment stanza
+            
+            BEFORE every run: drop the bed's alias from the managed ssh fragment
+            (`~/.config/charly/ssh_config` — the `Host charly-check-omarchy-pr-<N>-vm` stanza:
+            `sed`/regex-remove the block) so the create re-publishes the CURRENT passt port. A
+            re-run against a stale stanza parks the pre-deploy readiness gate (zero CPU, zero
+            children, no probe). The deeper charly fix (the publish should always refresh the port
+            on re-runs) is recorded for the plugin-vm lifecycle PR.
+            
+            ### Concurrency guidance (16-lane) — standing form of the 16/32-lane lessons
+            
+            - **Golden-lock:** a batch NEVER starts while a golden-provisioning run is active (the
+              golden is held — concurrent launches crash on it).
+            - **Shared ssh-config state:** the shared `~/.config/charly/ssh_config` rewrite races
+              across parallel lanes (deploy-add "Could not resolve hostname"); a retry after the
+              config settles succeeds. Recorded as an upstream candidate.
+            - **Lane ceiling:** default = ONE EVAL LANE PER CPU CORE (concurrency = nproc, capped
+              so 2G × lanes ≤ host RAM); the measured cap stays ≤ the core count —
+              beyond 16 concurrent VM lifecycles the vm-store/libvirt queue inflates the late
+              slots and throughput goes DOWN (measured at 32).
+            - **Launch detachment:** long lanes MUST be launched detached —
+              `setsid <cmd> </dev/null > log 2>&1 &`. A plain nohup inside a tool-call session
+              dies when the caller's call is cancelled.
+            - **Oversubscription:** while the host materialized-tree cache is absent, stay at
+              ≤16 lanes / 1 vCPU (the oversubscription amplifier).
+            
+            ### The host/guest responsibility split
+            
+            - `target: local` deploy inside a VM: the guest = an SSHExecutor target
+              (`ssh user@127.0.0.1:37xxx`); `host: local` = the ShellExecutor (direct shell on
+              that machine). The install plan walks via the shared out-of-process walk; the steps
+              the deploy:local plugin cannot render (`BuilderStep`/`LocalPkgInstallStep`/
+              `SystemPackagesStep`/`OpStep`/…) marshal to the charly on the host over the
+              EXECUTOR REVERSE CHANNEL.
+            - The loader routes the merged-tree materialization to the host
+              (`ResolveMergedDeployTreeViaExecutor` → the executor `HostBuild` seam) — the guest
+              does NOT re-unify per child in-guest; the HOST re-materializes the merged CUE unify
+              PER CHILD (no cache).
+            - The root fix = the host materialized-tree cache at the executor seam — later children
+              reuse one unify.
+            - ANY future "why is the guest slow" RCA must first check the marshaling layer: which
+              step runs where (guest vs host) + whether the host-side op is cached.
+            
+            ## Expected-phase budget (oracle-owned, feeds plan stage 3)
+            
+            Class routing, channel choice, vCPU/RAM sizing and the expected-phase budget belong to
+            the oracle. The expected-phase budget (per-phase expected durations) feeds plan stage 3:
+            every phase's expected duration is budgeted before launch; a run that materially
+            exceeds its budget is investigated via the per-eval stats (stats-signature discipline),
+            never accepted blindly.
+
+omarchy-eval-tiers-skill:
+    skill:
+        name: omarchy-eval-tiers
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            What each tier proves (container vs live VM vs visual/GPU) and the mandatory routing rule. Use before scoping an eval claim.
+        content: |-
+            
+            
+            ## What each tier proves (honest semantics)
+            
+            A claim in a report is only as strong as the tier that produced it. Never claim
+            live-system behavior from a container run.
+            
+            - **Tier-1 container (pod):** proves the PR's files are applied to the installed
+              tree, and the script-level logic with the container's REAL tools (e.g. real
+              pacman, real commands, real file state). It does NOT prove live system behavior:
+              real hardware switching, real filesystem/snapshot behavior, a real session
+              environment, real network state, real keypresses, real service behavior. No
+              mocked tools, ever — a behavior that cannot be tested with the container's real
+              tools is tested on the live VM or not claimed.
+            - **Tier-2 live VM (omarchy-vm):** proves the PR's behavior on a real omarchy
+              system — real cardwire, real btrfs snapshots, real flatpak, real network, real
+              desktop. This is the tier for system-behavior claims.
+            - **Tier-2 visual / L3 GPU:** desktop evidence and hardware-bound classes
+              (PARTIAL/NOT-EVALUABLE when the hardware is unavailable — never a faked bed).
+            
+            ## Routing rule
+            
+            A PR whose core behavior is system-level (hardware switching, filesystem/snapshot
+            behavior, session environment, network state, keybindings, service behavior) MUST
+            be evaluated on a live VM (Tier-2), not just the container. The container tier
+            alone is insufficient for these classes.
+            
+            ## The validation's purpose is binary: does it actually work?
+            
+            The only valid verdicts are PASS (verified working on a live system) and FAIL
+            (verified not working on a live system). NO VALIDATION means the validation itself
+            failed — it could not answer the question because the core behavior could not be
+            tested on a live system.
+            
+            ## Strict prohibition
+            
+            Any "might work" / "mostly works" / "it works" evaluation that is NOT verified on a
+            live system is **STRICTLY FORBIDDEN** — it fakes success for something the
+            validation could not test. A pod-only eval is NOT a validation: the container tier
+            cannot test live system behavior, so a container run of a system-behavior PR proves
+            nothing about the PR and must never be presented as a validation. If the validation
+            cannot test the thing on a live system, the validation itself FAILS — the result is
+            NO VALIDATION, and no report is produced. A container run never becomes a
+            live-behavior claim, and an untested live behavior never becomes a pass or a fail —
+            it becomes nothing.
+            
+            ## Honesty about testing
+            
+            Bases are disposable test systems rebuilt fresh on installer/channel version bumps;
+            every PR apply is fresh (revert + re-apply); one full fresh-install verification run
+            stays per batch; lane-only evals report the "tested on a real system" level unless
+            the fresh-install run happened; every report records channel + installer version +
+            snapshot id — no faked freshness. A report's claims are scoped to the tier that
+            produced them: a container run proves script logic and file application, never live
+            system behavior. A system-behavior PR whose live tier has not run is reported as
+            "mostly works — script logic verified; live behavior not yet tested", never as a
+            live-behavior pass.
+
+omarchy-eval-work-lane-skill:
+    skill:
+        name: omarchy-eval-work-lane
+        family: distros
+        owner: omarchy-eval
+        description: |-
+            The eval/pr-<N>.md frontmatter schema (triage|tier|known_red|cold_read|verdict) and the routing table. Use when authoring or consuming reports.
+        content: |-
+            
+            
+            # Work-lane schema — eval/pr-<N>.md frontmatter
+            
+            Binding route: the eval lane contract lives in eval/PR-EVAL-LANE.md (the entry) and
+            the sibling references in this directory. This file defines the structured frontmatter
+            that makes every report machine-routable — the work-lane analog of the review-lane
+            fields in ClawSweeper's work-lane (structure only; the eval has no close/merge lanes).
+            
+            ## Frontmatter fields (new evals — existing reports GRANDFATHERED)
+            
+            New evaluation reports (eval/pr-<N>.md) carry this frontmatter:
+            
+            ```yaml
+            ---
+            eval:
+              pr: <N>
+              title: <PR title>
+              head_sha: <evaluated head — compare with the live PR head before trusting>
+              triage: pass | skip-note            # standing rule 8
+              class: <system | script | visual | hardware | package | other>
+              channel: stable | rc | edge | dev
+              tier: pod | vm | visual | gpu       # the tier that produced the core claim
+              known_red: verified | broken        # RED-PROBE outcome
+              cold_read: pending | pass | fail
+              verdict: PASS | FAIL | NO_VALIDATION
+              hardware_bound: <class> | null      # PARTIAL/NOT-EVALUABLE when set
+              posted: false                       # the publication gate; comments are operator-owned
+            ---
+            ```
+            
+            ## Routing table
+            
+            | Field combination | Route |
+            |---|---|
+            | triage: skip-note | No report — a short triage note under eval/ (rule 8), never a validation. |
+            | known_red: broken (RED-PROBE exit 0) | PROCESS BLOCK — never an eval; stop and RCA (process finding). |
+            | verdict: NO_VALIDATION | The validation itself failed — no report is produced (strict prohibition: a pod-only eval of a system-behavior PR is NOT a validation). |
+            | verdict: PASS/FAIL + cold_read: pass | Finalize + render from eval/PR-EVAL-TEMPLATE.md; posting still requires the operator gate (posted stays false until an operator posts). |
+            | cold_read: fail | The report is FIXED, never posted (cold-reader judge rule). |
+            | hardware_bound set | The class is PARTIAL/NOT-EVALUABLE — never a faked bed, never claimed. |
+            | head_sha ≠ live PR head | The verdict is STALE — regenerate the bed before using the report (head-freshness rule). |
+            | tier: pod for a system-behavior class | HARD FAIL (wrong-tier eval); the routing rule is mandatory. |
+            
+            ## Ownership
+            
+            - The schema is defined ONCE here; the cold-reader rubric grades against it
+              (.agents/skills/omarchy-eval-cold-reader/SKILL.md); the report template (eval/PR-EVAL-TEMPLATE.md)
+              renders from these fields. Nothing else restates it (R3).
