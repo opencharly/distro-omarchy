@@ -1,6 +1,9 @@
 omarchy-suite-base:
     candy:
         version: 2026.243.0000
+        # NOTE (R3): the omarchy-eval* skill corpus is NOT owned in this box —
+        # it lives in opencharly/eval-omarchy (candy/eval-lane/charly.yml,
+        # generated to marketplace/distros/skills/).
         description: |
             The Tier-1 evaluation image: the proven omarchy base plus the charly
             consequence checks for the live omarchy system — the Class B surface
