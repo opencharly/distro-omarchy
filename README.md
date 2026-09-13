@@ -48,8 +48,8 @@ Omarchy is the package set and the sources it comes from, not a vendor base laye
 
 charly does **not** run Omarchy's own installer either. In 4.x there is no `install.sh`
 at the repo root at all: `install/` is the machinery the ISO runs, and the ISO is the
-install path. charly composes the same four packages the ISO installs (`omarchy`,
-`omarchy-settings`, `omarchy-keyring`, `omarchy-nvim`) from the same repositories.
+install path. charly composes the `omarchy` and `omarchy-settings` packages — plus
+the CLI tools those commands call — from the same repositories.
 
 All 148 base packages resolve with **plain pacman** — 23 from `[omarchy]`, 125 from
 `core`/`extra`/`multilib` served by Omarchy's own mirror snapshot — which is why the base
@@ -80,4 +80,4 @@ Never push to `main`.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT.
