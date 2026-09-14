@@ -212,7 +212,7 @@ omarchy-vm:
         source:
             kind: iso
             distro: omarchy
-            url: https://iso.omarchy.org/omarchy-4.0.1.iso
+            url: https://iso.omarchy.org/omarchy-4.0.3.iso
             checksum: {type: sha256}
             installer:
                 username: user
@@ -960,28 +960,33 @@ check-omarchy-iso-vm:
                   package: cups
                   installed: true
 
-            # ── NOT asserted on this ISO: Omarchy's CUPS hardening ─────────────────
-            # Upstream's cups-test.sh asserts that cups-pdf, cups-browsed and
-            # unauthenticated `lpinfo -v` are all ABSENT. None of that holds here, and the
-            # guest is right — the test suite is newer than the artifact under test.
-            #
-            # This bed pins omarchy-4.0.1.iso, and 4.0.1's own
-            # /usr/share/omarchy/install/omarchy-base.packages lists:
-            #
-            #     cups  cups-browsed  cups-filters  cups-pdf
-            #
-            # with no cups-pk-helper. Its post-install does not REMOVE cups-browsed, it
-            # CONFIGURES it (install/post-install/pacman.sh copies
-            # etc-overrides/cups-cups-browsed.conf into /etc/cups). The hardening landed in
-            # omarchy AFTER 4.0.1, which is why `test/acceptance.d/cups-test.sh` at quattro
-            # HEAD expects the opposite of what 4.0.1 ships.
-            #
-            # Porting those five assertions unchanged made the bed fail against a correct
-            # guest. They belong here the moment `source.url` moves to a release carrying
-            # the hardening — and at that point they become a genuine regression gate for it.
-            #
-            # What IS asserted below is what 4.0.1 itself guarantees.
-            - check: the CUPS filter stack 4.0.1 ships is installed
+            # ── Omarchy's CUPS hardening — asserted (it landed in 4.0.3) ────────
+            # Upstream's cups-test.sh asserts that cups-pdf and cups-browsed are
+            # ABSENT. On 4.0.1 none of that held (its omarchy-base.packages listed
+            # `cups cups-browsed cups-filters cups-pdf`, and post-install
+            # CONFIGURED cups-browsed), so the assertions were deliberately not
+            # ported. This bed now pins omarchy-4.0.3.iso, whose
+            # omarchy-base.packages lists `cups cups-filters cups-pk-helper
+            # system-config-printer` (cups-browsed + cups-pdf dropped), so the
+            # hardening assertions below are now a genuine regression gate.
+
+            - check: the root CUPS-PDF backend is absent (the 4.0.3 hardening)
+              id: omarchy-cups-pdf-absent
+              context:
+                  - runtime
+              package:
+                  package: cups-pdf
+                  installed: false
+
+            - check: automatic printer discovery is absent (the 4.0.3 hardening)
+              id: omarchy-cups-browsed-absent
+              context:
+                  - runtime
+              package:
+                  package: cups-browsed
+                  installed: false
+
+            - check: the CUPS filter stack 4.0.3 ships is installed
               id: omarchy-cups-filters
               context:
                   - runtime
@@ -1078,7 +1083,7 @@ check-omarchy-iso-vm:
               context:
                   - runtime
               # upstream: browser-policy-dir-test.sh, default-apps-test.sh. Measured EMPTY
-              # on a stock 4.0.1 guest (0 entries), so this asserts the DIRECTORY only.
+              # on a stock 4.0.3 guest (0 entries), so this asserts the DIRECTORY only.
               # Asserting a policy FILE — which is what those tests are really about — would
               # fail a correct guest, so it is left out until a release ships one.
               file:
@@ -2071,8 +2076,8 @@ check-omarchy-desktop-vm:
             #
             # Without OCR the sequence would be guesswork against a menu layout this bed
             # cannot observe, and against a DIFFERENT layout than upstream's: the guest is
-            # omarchy 4.0.1 and the suite is read at quattro. A sequence tuned to quattro
-            # that lands elsewhere on 4.0.1 fails while the desktop is perfectly correct —
+            # omarchy 4.0.3 and the suite is read at quattro. A sequence tuned to quattro
+            # that lands elsewhere on 4.0.3 fails while the desktop is perfectly correct —
             # a false failure that teaches nothing and would be silenced rather than
             # fixed. The navigation is therefore OCR-gated in practice, not only in its
             # two explicit screen_contains calls, and it is named in the PR as what
