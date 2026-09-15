@@ -2762,13 +2762,32 @@ check-omarchy-desktop-vm:
               wl: hypr-layers
               stdout:
                   - contains: omarchy-image-selector
-            - check: Escape closes the theme selector without changing the theme
+            - check: dismiss the theme selector without changing the theme
               id: omarchy-surfaces-theme-escape
               context:
                   - runtime
-              wl:
-                  method: key
-                  key: Escape
+              # The dismissal is the selector's OWN IPC cancel, not a synthetic
+              # keystroke. RCA (R1): `wtype -k Escape` closes this layer only
+              # INTERMITTENTLY on the headless guest — sometimes it dismisses, and
+              # sometimes the surface stays mapped with `hyprctl -j activewindow`
+              # reporting `class: NONE`, so a following assertion flakes (measured: a
+              # single Escape left it mapped through 4 repeats AND a Return in one
+              # run, while `image-selector cancel` dismissed it deterministically).
+              # A `wl: key` step cannot express a retry — it exits 0 whether or not
+              # the key took effect — so the flake cannot be fixed by repeating the
+              # step. The `quickshell:` verb drives the shell's real dismissal handler
+              # (the same verb the notification dismissal above uses): the selector's
+              # own cancel path, which is exactly "dismiss without changing the theme".
+              # Upstream uses `wtype -k Escape` + `sleep 1`; the sleep is replaced by
+              # the framework's `eventually:` poll on the following assertion step (R4).
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: image-selector
+                  function: cancel
+                  args: ['']
             - check: the theme selector surface is gone
               id: omarchy-surfaces-theme-closed
               context:
