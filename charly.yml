@@ -2074,6 +2074,62 @@ check-omarchy-desktop-vm:
               stdout:
                   - matches: '"class": ?"foot"'
 
+            # ── the wl: window verbs, on a BARE target ─────────────────────────────
+            # focus / fullscreen / minimize / close are the four Hyprland window
+            # verbs that share ONE selector contract. Each is exercised here with a
+            # BARE `target:` (the shape every bed authors, and the shape the wlrctl
+            # backend matches as the app id), so the plugin's bare→`class:`
+            # normalization is proven on Hyprland — not just close.
+            - check: the wl focus verb focuses the terminal by bare target
+              id: omarchy-apps-terminal-focus
+              context:
+                  - runtime
+              wl:
+                  method: focus
+                  target: foot
+            - check: the terminal is the ACTIVE window (focus really moved)
+              id: omarchy-apps-terminal-focused
+              context:
+                  - runtime
+              eventually: 15s
+              command:
+                  command: 'hyprctl -j activewindow | grep -q "\"class\": *\"foot\""'
+            - check: the wl fullscreen verb toggles fullscreen on the terminal by bare target
+              id: omarchy-apps-terminal-fullscreen
+              context:
+                  - runtime
+              wl:
+                  method: fullscreen
+                  target: foot
+            - check: the terminal reports fullscreen (mode=1 really applied)
+              id: omarchy-apps-terminal-fullscreened
+              context:
+                  - runtime
+              eventually: 15s
+              command:
+                  command: 'test "$(hyprctl clients -j | jq -r ''.[] | select(.class=="foot") | .fullscreen'')" = "1"'
+            - check: the wl fullscreen verb toggles it back off
+              id: omarchy-apps-terminal-unfullscreen
+              context:
+                  - runtime
+              wl:
+                  method: fullscreen
+                  target: foot
+            - check: the wl minimize verb moves the terminal to the minimized workspace by bare target
+              id: omarchy-apps-terminal-minimize
+              context:
+                  - runtime
+              wl:
+                  method: minimize
+                  target: foot
+            - check: the terminal really moved to special:minimized
+              id: omarchy-apps-terminal-minimized
+              context:
+                  - runtime
+              eventually: 15s
+              command:
+                  command: 'hyprctl clients -j | jq -r ''.[] | select(.class=="foot") | .workspace.name'' | grep -q "^special:minimized$"'
+
             - check: closing the terminal removes its window
               id: omarchy-apps-terminal-closes
               context:
