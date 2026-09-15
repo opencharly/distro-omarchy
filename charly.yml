@@ -2074,6 +2074,81 @@ check-omarchy-desktop-vm:
               stdout:
                   - matches: '"class": ?"foot"'
 
+            # ── the wl: window verbs, on a BARE target ─────────────────────────────
+            # focus / fullscreen / minimize / close are the four Hyprland window
+            # verbs that share ONE selector contract. Each is exercised here with a
+            # BARE `target:` (the shape every bed authors, and the shape the wlrctl
+            # backend matches as the app id), so the plugin's bare→`class:`
+            # normalization is proven on Hyprland — not just close.
+            - check: the wl focus verb focuses the terminal by bare target
+              id: omarchy-apps-terminal-focus
+              context:
+                  - runtime
+              # The PASS IS the observation: the plugin's Hyprland dispatch is now
+              # CHECKED (plugin-wl#18), so a bare target that did NOT normalize to a
+              # matching selector would make hyprctl print `hl.focus: window not
+              # found` to stdout and the verb would FAIL here. A green step proves
+              # the bare `foot` resolved. (A separate activewindow assertion is
+              # deliberately NOT used: this guest is headless with no seat, so
+              # `hyprctl activewindow` is unreliable there — the state assertions
+              # that ARE headless-stable are used for fullscreen and minimize below.)
+              wl:
+                  method: focus
+                  target: foot
+            - check: the wl fullscreen verb toggles fullscreen on the terminal by bare target
+              id: omarchy-apps-terminal-fullscreen
+              context:
+                  - runtime
+              wl:
+                  method: fullscreen
+                  target: foot
+            - check: the terminal reports fullscreen (mode=1 really applied)
+              id: omarchy-apps-terminal-fullscreened
+              context:
+                  - runtime
+              eventually: 15s
+              command:
+                  command: |
+                      export XDG_RUNTIME_DIR=/run/user/1000
+                      export HYPRLAND_INSTANCE_SIGNATURE=$(hyprctl -j instances | sed -n 's/.*"instance"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+                      test "$(hyprctl clients -j | jq -r '.[] | select(.class=="foot") | .fullscreen')" = "1"
+            - check: the wl fullscreen verb toggles it back off
+              id: omarchy-apps-terminal-unfullscreen
+              context:
+                  - runtime
+              wl:
+                  method: fullscreen
+                  target: foot
+            - check: the wl minimize verb moves the terminal to the minimized workspace by bare target
+              id: omarchy-apps-terminal-minimize
+              context:
+                  - runtime
+              wl:
+                  method: minimize
+                  target: foot
+            - check: the terminal really moved to special:minimized
+              id: omarchy-apps-terminal-minimized
+              context:
+                  - runtime
+              eventually: 15s
+              command:
+                  command: |
+                      export XDG_RUNTIME_DIR=/run/user/1000
+                      export HYPRLAND_INSTANCE_SIGNATURE=$(hyprctl -j instances | sed -n 's/.*"instance"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+                      hyprctl clients -j | jq -r '.[] | select(.class=="foot") | .workspace.name' | grep -q '^special:minimized$'
+            # NEGATIVE: the plugin's dispatch is CHECKED — an unresolvable selector
+            # must FAIL the verb, not report success. This exercises the failure path
+            # plugin-wl#18 added (pre-fix, `hyprctl dispatch` exited 0 while printing
+            # `hl.focus: window not found`, so a no-op focus reported success).
+            - check: the wl focus verb FAILS on an unresolvable selector (the checked-dispatch failure path)
+              id: omarchy-apps-terminal-focus-unresolvable
+              context:
+                  - runtime
+              exit_status: 1
+              wl:
+                  method: focus
+                  target: this-window-does-not-exist-xyzzy
+
             - check: closing the terminal removes its window
               id: omarchy-apps-terminal-closes
               context:
