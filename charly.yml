@@ -212,7 +212,7 @@ omarchy-vm:
         source:
             kind: iso
             distro: omarchy
-            url: https://iso.omarchy.org/omarchy-4.0.1.iso
+            url: https://iso.omarchy.org/omarchy-4.0.3.iso
             checksum: {type: sha256}
             installer:
                 username: user
@@ -960,34 +960,101 @@ check-omarchy-iso-vm:
                   package: cups
                   installed: true
 
-            # ── NOT asserted on this ISO: Omarchy's CUPS hardening ─────────────────
-            # Upstream's cups-test.sh asserts that cups-pdf, cups-browsed and
-            # unauthenticated `lpinfo -v` are all ABSENT. None of that holds here, and the
-            # guest is right — the test suite is newer than the artifact under test.
-            #
-            # This bed pins omarchy-4.0.1.iso, and 4.0.1's own
-            # /usr/share/omarchy/install/omarchy-base.packages lists:
-            #
-            #     cups  cups-browsed  cups-filters  cups-pdf
-            #
-            # with no cups-pk-helper. Its post-install does not REMOVE cups-browsed, it
-            # CONFIGURES it (install/post-install/pacman.sh copies
-            # etc-overrides/cups-cups-browsed.conf into /etc/cups). The hardening landed in
-            # omarchy AFTER 4.0.1, which is why `test/acceptance.d/cups-test.sh` at quattro
-            # HEAD expects the opposite of what 4.0.1 ships.
-            #
-            # Porting those five assertions unchanged made the bed fail against a correct
-            # guest. They belong here the moment `source.url` moves to a release carrying
-            # the hardening — and at that point they become a genuine regression gate for it.
-            #
-            # What IS asserted below is what 4.0.1 itself guarantees.
-            - check: the CUPS filter stack 4.0.1 ships is installed
+            # ── Omarchy's CUPS hardening — asserted (it landed in 4.0.3) ────────
+            # Upstream's cups-test.sh is a hardening suite: it asserts the parts of
+            # CUPS that widen the attack surface are ABSENT and the rest are locked
+            # down. On 4.0.1 none of that held (its omarchy-base.packages listed
+            # `cups cups-browsed cups-filters cups-pdf`, and post-install
+            # CONFIGURED cups-browsed), so the assertions were deliberately not
+            # ported. This bed now pins omarchy-4.0.3.iso, whose
+            # omarchy-base.packages lists `cups cups-filters cups-pk-helper
+            # system-config-printer` (cups-browsed + cups-pdf dropped), so the FULL
+            # hardening set below is now a genuine regression gate — no narrowing.
+
+            # upstream: `for package in cups cups-filters system-config-printer
+            # cups-pk-helper` — the printing stack that REMAINS.
+            - check: the printing packages 4.0.3 ships are installed
               id: omarchy-cups-filters
               context:
                   - runtime
               package:
                   package: cups-filters
                   installed: true
+
+            - check: the polkit helper the authorization policy needs is installed
+              id: omarchy-cups-pk-helper
+              context:
+                  - runtime
+              package:
+                  package: cups-pk-helper
+                  installed: true
+
+            - check: the printer configuration UI is installed
+              id: omarchy-cups-system-config-printer
+              context:
+                  - runtime
+              package:
+                  package: system-config-printer
+                  installed: true
+
+            # upstream: `! pacman -Q cups-pdf` — the root CUPS-PDF backend.
+            - check: the root CUPS-PDF backend is absent (the 4.0.3 hardening)
+              id: omarchy-cups-pdf-absent
+              context:
+                  - runtime
+              package:
+                  package: cups-pdf
+                  installed: false
+
+            # upstream: `! pacman -Q cups-browsed` + the service not enabled/
+            # active + no process — automatic printer discovery is gone.
+            - check: automatic printer discovery is absent (the 4.0.3 hardening)
+              id: omarchy-cups-browsed-absent
+              context:
+                  - runtime
+              package:
+                  package: cups-browsed
+                  installed: false
+
+            - check: no cups-browsed process exists
+              id: omarchy-cups-browsed-no-process
+              context:
+                  - runtime
+              command: '! pgrep -x cups-browsed >/dev/null'
+
+            # upstream: `[[ ! -e $path && ! -L $path ]]` over the cups-browsed
+            # package file set — removal leaves no files behind.
+            - check: automatic printer discovery leaves no package files
+              id: omarchy-cups-browsed-no-files
+              context:
+                  - runtime
+              command: |
+                  set -eu
+                  for p in \
+                    /etc/cups/cups-browsed.conf \
+                    /etc/cups/cups-browsed.conf.pacsave \
+                    /etc/cups/cups-browsed.conf.pacnew \
+                    /usr/bin/cups-browsed \
+                    /usr/lib/cups/backend/implicitclass \
+                    /usr/lib/systemd/system/cups-browsed.service \
+                    /etc/systemd/system/multi-user.target.wants/cups-browsed.service; do
+                    if [ -e "$p" ] || [ -L "$p" ]; then echo "cups-browsed residue: $p"; exit 1; fi
+                  done
+
+            # upstream: the desktop user cannot administer CUPS without
+            # authentication — `lpinfo -v` must FAIL and say "Forbidden".
+            - check: CUPS denies unauthenticated desktop administration
+              id: omarchy-cups-unauthenticated-admin-denied
+              context:
+                  - runtime
+              command: |
+                  set -eu
+                  out=$(LC_ALL=C timeout 10 lpinfo -v </dev/null 2>&1) && {
+                    echo "lpinfo -v SUCCEEDED unauthenticated (expected denial): $out"; exit 1; }
+                  case "$out" in
+                    *Forbidden*) ;;
+                    *) echo "lpinfo -v denied but not via Forbidden: $out"; exit 1 ;;
+                  esac
 
             - check: CUPS is enabled, running, and answering
               id: omarchy-cups-running
@@ -1078,7 +1145,7 @@ check-omarchy-iso-vm:
               context:
                   - runtime
               # upstream: browser-policy-dir-test.sh, default-apps-test.sh. Measured EMPTY
-              # on a stock 4.0.1 guest (0 entries), so this asserts the DIRECTORY only.
+              # on a stock 4.0.3 guest (0 entries), so this asserts the DIRECTORY only.
               # Asserting a policy FILE — which is what those tests are really about — would
               # fail a correct guest, so it is left out until a release ships one.
               file:
@@ -2071,8 +2138,8 @@ check-omarchy-desktop-vm:
             #
             # Without OCR the sequence would be guesswork against a menu layout this bed
             # cannot observe, and against a DIFFERENT layout than upstream's: the guest is
-            # omarchy 4.0.1 and the suite is read at quattro. A sequence tuned to quattro
-            # that lands elsewhere on 4.0.1 fails while the desktop is perfectly correct —
+            # omarchy 4.0.3 and the suite is read at quattro. A sequence tuned to quattro
+            # that lands elsewhere on 4.0.3 fails while the desktop is perfectly correct —
             # a false failure that teaches nothing and would be silenced rather than
             # fixed. The navigation is therefore OCR-gated in practice, not only in its
             # two explicit screen_contains calls, and it is named in the PR as what
@@ -2695,13 +2762,32 @@ check-omarchy-desktop-vm:
               wl: hypr-layers
               stdout:
                   - contains: omarchy-image-selector
-            - check: Escape closes the theme selector without changing the theme
+            - check: dismiss the theme selector without changing the theme
               id: omarchy-surfaces-theme-escape
               context:
                   - runtime
-              wl:
-                  method: key
-                  key: Escape
+              # The dismissal is the selector's OWN IPC cancel, not a synthetic
+              # keystroke. RCA (R1): `wtype -k Escape` closes this layer only
+              # INTERMITTENTLY on the headless guest — sometimes it dismisses, and
+              # sometimes the surface stays mapped with `hyprctl -j activewindow`
+              # reporting `class: NONE`, so a following assertion flakes (measured: a
+              # single Escape left it mapped through 4 repeats AND a Return in one
+              # run, while `image-selector cancel` dismissed it deterministically).
+              # A `wl: key` step cannot express a retry — it exits 0 whether or not
+              # the key took effect — so the flake cannot be fixed by repeating the
+              # step. The `quickshell:` verb drives the shell's real dismissal handler
+              # (the same verb the notification dismissal above uses): the selector's
+              # own cancel path, which is exactly "dismiss without changing the theme".
+              # Upstream uses `wtype -k Escape` + `sleep 1`; the sleep is replaced by
+              # the framework's `eventually:` poll on the following assertion step (R4).
+              stdout:
+                  - matches: '^ok\s*$'
+              quickshell:
+                  method: call
+                  config: /usr/share/omarchy/shell
+                  target: image-selector
+                  function: cancel
+                  args: ['']
             - check: the theme selector surface is gone
               id: omarchy-surfaces-theme-closed
               context:
