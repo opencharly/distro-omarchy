@@ -2091,9 +2091,14 @@ check-omarchy-desktop-vm:
               id: omarchy-apps-terminal-focused
               context:
                   - runtime
+              # The guest's command: steps are not login shells (the cachyos bed
+              # precedent, charly.yml there): export the Hyprland env explicitly.
               eventually: 15s
               command:
-                  command: 'hyprctl -j activewindow | grep -q "\"class\": *\"foot\""'
+                  command: |
+                      export XDG_RUNTIME_DIR=/run/user/1000
+                      export HYPRLAND_INSTANCE_SIGNATURE=$(hyprctl -j instances | sed -n 's/.*"instance"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+                      hyprctl -j activewindow | grep -q '"class": *"foot"'
             - check: the wl fullscreen verb toggles fullscreen on the terminal by bare target
               id: omarchy-apps-terminal-fullscreen
               context:
@@ -2107,7 +2112,10 @@ check-omarchy-desktop-vm:
                   - runtime
               eventually: 15s
               command:
-                  command: 'test "$(hyprctl clients -j | jq -r ''.[] | select(.class=="foot") | .fullscreen'')" = "1"'
+                  command: |
+                      export XDG_RUNTIME_DIR=/run/user/1000
+                      export HYPRLAND_INSTANCE_SIGNATURE=$(hyprctl -j instances | sed -n 's/.*"instance"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+                      test "$(hyprctl clients -j | jq -r '.[] | select(.class=="foot") | .fullscreen')" = "1"
             - check: the wl fullscreen verb toggles it back off
               id: omarchy-apps-terminal-unfullscreen
               context:
@@ -2128,7 +2136,10 @@ check-omarchy-desktop-vm:
                   - runtime
               eventually: 15s
               command:
-                  command: 'hyprctl clients -j | jq -r ''.[] | select(.class=="foot") | .workspace.name'' | grep -q "^special:minimized$"'
+                  command: |
+                      export XDG_RUNTIME_DIR=/run/user/1000
+                      export HYPRLAND_INSTANCE_SIGNATURE=$(hyprctl -j instances | sed -n 's/.*"instance"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+                      hyprctl clients -j | jq -r '.[] | select(.class=="foot") | .workspace.name' | grep -q '^special:minimized$'
 
             - check: closing the terminal removes its window
               id: omarchy-apps-terminal-closes
