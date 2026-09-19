@@ -212,7 +212,7 @@ omarchy-vm:
         source:
             kind: iso
             distro: omarchy
-            url: https://iso.omarchy.org/omarchy-4.0.3.iso
+            url: https://iso.omarchy.org/omarchy-4.0.4.iso
             checksum: {type: sha256}
             installer:
                 username: user
@@ -966,14 +966,14 @@ check-omarchy-iso-vm:
             # down. On 4.0.1 none of that held (its omarchy-base.packages listed
             # `cups cups-browsed cups-filters cups-pdf`, and post-install
             # CONFIGURED cups-browsed), so the assertions were deliberately not
-            # ported. This bed now pins omarchy-4.0.3.iso, whose
+            # ported. This bed pins omarchy-4.0.4.iso, whose
             # omarchy-base.packages lists `cups cups-filters cups-pk-helper
             # system-config-printer` (cups-browsed + cups-pdf dropped), so the FULL
             # hardening set below is now a genuine regression gate — no narrowing.
 
             # upstream: `for package in cups cups-filters system-config-printer
             # cups-pk-helper` — the printing stack that REMAINS.
-            - check: the printing packages 4.0.3 ships are installed
+            - check: the printing packages 4.0.4 ships are installed
               id: omarchy-cups-filters
               context:
                   - runtime
@@ -1144,10 +1144,11 @@ check-omarchy-iso-vm:
               id: omarchy-iso-vm-chromium-policy-dir
               context:
                   - runtime
-              # upstream: browser-policy-dir-test.sh, default-apps-test.sh. Measured EMPTY
-              # on a stock 4.0.3 guest (0 entries), so this asserts the DIRECTORY only.
-              # Asserting a policy FILE — which is what those tests are really about — would
-              # fail a correct guest, so it is left out until a release ships one.
+              # upstream: browser-policy-dir-test.sh, default-apps-test.sh. This asserts the
+              # DIRECTORY only: the check's basis is that Omarchy creates the managed-policy
+              # dir, NOT a measured entry count. Asserting a policy FILE — which is what those
+              # upstream tests are really about — would fail a correct guest that ships none,
+              # so it is left out until a release ships one.
               file:
                   file: /etc/chromium/policies/managed
                   filetype: directory
@@ -2213,8 +2214,8 @@ check-omarchy-desktop-vm:
             #
             # Without OCR the sequence would be guesswork against a menu layout this bed
             # cannot observe, and against a DIFFERENT layout than upstream's: the guest is
-            # omarchy 4.0.3 and the suite is read at quattro. A sequence tuned to quattro
-            # that lands elsewhere on 4.0.3 fails while the desktop is perfectly correct —
+            # omarchy 4.0.4 and the suite is read at quattro. A sequence tuned to quattro
+            # that lands elsewhere on 4.0.4 fails while the desktop is perfectly correct —
             # a false failure that teaches nothing and would be silenced rather than
             # fixed. The navigation is therefore OCR-gated in practice, not only in its
             # two explicit screen_contains calls, and it is named in the PR as what
