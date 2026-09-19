@@ -1144,10 +1144,11 @@ check-omarchy-iso-vm:
               id: omarchy-iso-vm-chromium-policy-dir
               context:
                   - runtime
-              # upstream: browser-policy-dir-test.sh, default-apps-test.sh. Measured EMPTY
-              # on a stock 4.0.4 guest (0 entries), so this asserts the DIRECTORY only.
-              # Asserting a policy FILE — which is what those tests are really about — would
-              # fail a correct guest, so it is left out until a release ships one.
+              # upstream: browser-policy-dir-test.sh, default-apps-test.sh. This asserts the
+              # DIRECTORY only: the check's basis is that Omarchy creates the managed-policy
+              # dir, NOT a measured entry count. Asserting a policy FILE — which is what those
+              # upstream tests are really about — would fail a correct guest that ships none,
+              # so it is left out until a release ships one.
               file:
                   file: /etc/chromium/policies/managed
                   filetype: directory
