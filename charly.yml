@@ -19,7 +19,7 @@
 #  All 148 base packages resolve with plain pacman (23 from [omarchy], 125 from
 #  core/extra/multilib served by Omarchy's mirror snapshot), which is why the base box is
 #  `build: [pac]` with NO aur builder.
-version: 2026.249.2125
+version: 2026.261.1747
 repo: github.com/opencharly/distro-omarchy
 defaults:
     platform:
