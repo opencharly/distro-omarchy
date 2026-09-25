@@ -41,6 +41,335 @@ discover:
     - path: candy
       recursive: true
 
+# ── the configurable console-installer device (kind: jetkvm) ──────────────────────
+#
+# The Omarchy installer KNOWLEDGE lives here, with Omarchy — never in the generic
+# KVM plugin (R3 / kernel-boundary law). The recipe is DATA: an ordered list of
+# `wait_for` -> action steps the generic `install` driver walks. The SAME recipe
+# drives a physical machine over a JetKVM (USB HID) and a VM's console over SPICE
+# (spice: wizard) — one authored recipe, either transport.
+#
+# Anchors are screen-UNIQUE strings (a string present on every screen would pass
+# vacuously and desynchronise the whole drive). Identity/credentials come from the
+# environment (`answers_env`) or the credential store (`answer_secrets`); nothing
+# machine-specific is committed.
+#
+#   JETKVM_HOST=<device> JETKVM_AUTH_TOKEN=<token> #     OMARCHY_KVM_USER=<user> OMARCHY_KVM_PASSWORD=<pw> #     charly check run check-omarchy-jetkvm-install
+omarchy-kvm:
+    jetkvm:
+        description: >-
+            The Omarchy archinstall configurator as a transport-neutral recipe: driven
+            by a physical machine through the jetkvm: verb (USB HID) or a VM console
+            through spice: wizard (SPICE keyboard).
+        installer:
+            recipes:
+                # probe — a SINGLE-STEP, non-destructive recipe: it waits for the
+                # Omarchy wordmark (present on the installer AND the installed
+                # desktop) and presses a harmless function key. Its job is to prove
+                # the entity resolution + the recipe selection + the transport's
+                # input live, on whatever screen the machine is showing. A real
+                # wizard recipe's anchors are screen-unique per step; a one-step
+                # probe has no next step to desynchronise against.
+                probe:
+                    - wait_for: "omarch"
+                      action: key
+                      key: F5
+                      description: wait for the Omarchy wordmark, then press F5 (non-destructive)
+                install:
+                    - wait_for: "Press Return to Start Install"
+                      action: key
+                      key: Return
+                      description: the Omarchy installer greeter
+                    - wait_for: "Select keyboard layout"
+                      action: key
+                      key: Return
+                      description: accept the default (US) keyboard
+                    - wait_for: "Username>"
+                      action: type
+                      text: "{{username}}"
+                      description: the primary user name
+                    - wait_for: "Password>"
+                      action: type
+                      text: "{{password}}"
+                      description: the user password
+                    - wait_for: "Confirm>"
+                      action: type
+                      text: "{{password}}"
+                      description: confirm the password
+                    - wait_for: "Full name>"
+                      action: type
+                      text: "{{full_name}}"
+                      description: the user's full name
+                    - wait_for: "Email address>"
+                      action: type
+                      text: "{{email}}"
+                      description: the user's email
+                    - wait_for: "Hostname>"
+                      action: type
+                      text: "{{hostname}}"
+                      description: the machine hostname
+                    - wait_for: "Timezone"
+                      action: key
+                      key: Return
+                      description: accept the geo-guessed timezone
+                    - wait_for: "Does this look right"
+                      action: key
+                      key: Return
+                      description: confirm the configurator summary
+                    - wait_for: "Select install disk"
+                      action: key
+                      key: Return
+                      description: select the single disk
+                    - wait_for: "Confirm overwriting"
+                      action: key
+                      key: Return
+                      description: confirm the disk overwrite (encrypt=false ⇒ no ctrl+c)
+                    - wait_for: "Installing Omarchy"
+                      description: wait for the install to run (no input)
+                    - wait_for: "Reboot Now"
+                      action: key
+                      key: Return
+                      description: reboot into the installed system
+                # first_boot — the INSTALLED system's first-boot owner provisioning
+                # wizard (omarchy-provision-owner). Shared by every flow: a VM whose
+                # seed defers provisioning and a console install both reach it.
+                first_boot:
+                    - wait_for: "Press Return to Start Setup"
+                      action: key
+                      key: Return
+                      description: the installed system's first-boot welcome
+                    - wait_for: "Select keyboard layout"
+                      action: key
+                      key: Return
+                      description: accept the default keyboard
+                    - wait_for: "Username>"
+                      action: type
+                      text: "{{username}}"
+                      description: the owner user name
+                    - wait_for: "Password>"
+                      action: type
+                      text: "{{password}}"
+                      description: the owner password
+                    - wait_for: "Confirm>"
+                      action: type
+                      text: "{{password}}"
+                      description: confirm the password
+                    - wait_for: "Full name>"
+                      action: type
+                      text: "{{full_name}}"
+                      description: the owner's full name
+                    - wait_for: "Email address>"
+                      action: type
+                      text: "{{email}}"
+                      description: the owner's email
+                    - wait_for: "Hostname>"
+                      action: type
+                      text: "{{hostname}}"
+                      description: the machine hostname
+                    - wait_for: "Timezone"
+                      action: key
+                      key: Return
+                      description: accept the geo-guessed timezone
+                # ssh_setup — make the INSTALLED system reachable over SSH, using
+                # Omarchy's OWN command (omarchy-setup-security-sshd: installs
+                # openssh, enables sshd, opens the firewall, authorizes the key).
+                # Driven from a text TTY (Ctrl+Alt+F3), which is far more robust to
+                # OCR than a graphical terminal. The key comes from {{ssh_pubkey}}
+                # (the public half of the flow's generated keypair) — the SAME key
+                # the VM flows use, so a reinstall is one `ssh` away.
+                ssh_setup:
+                    - wait_for: "login:"
+                      action: type
+                      text: "{{username}}"
+                      description: the installed system's TTY login prompt
+                    - wait_for: "Password:"
+                      action: type
+                      text: "{{password}}"
+                      description: the owner password
+                    - wait_for: "$"
+                      action: type
+                      text: "omarchy-setup-security-sshd --key=\"{{ssh_pubkey}}\""
+                      description: Omarchy's own SSH setup, with the flow's generated public key
+                    - wait_for: "Authorized key"
+                      description: the key was authorized (the command's success line)
+            answers:
+                # Generic fallbacks so an unset env var still installs; the operator
+                # overrides them with the OMARCHY_KVM_* env vars (the real identity is
+                # never committed).
+                username: omarchy
+                full_name: Omarchy User
+                email: omarchy@example.invalid
+                hostname: omarchy
+            answers_env:
+                # The environment-configurable path: the real credentials/identity are
+                # supplied at run time, never committed.
+                username: OMARCHY_KVM_USER
+                password: OMARCHY_KVM_PASSWORD
+                full_name: OMARCHY_KVM_FULL_NAME
+                email: OMARCHY_KVM_EMAIL
+                hostname: OMARCHY_KVM_HOSTNAME
+                # The PUBLIC half of the flow's generated keypair — the SAME key
+                # the VM flows use. The ssh_setup recipe types it into Omarchy's
+                # own `omarchy-setup-security-sshd --key=` so the installed machine
+                # is reachable for reinstall/manage work.
+                ssh_pubkey: OMARCHY_KVM_SSH_PUBKEY
+
+# check-omarchy-jetkvm-install — the JetKVM install bed. It drives the `install`
+# method against a physical device, walking the `omarchy-kvm` entity's recipe. It
+# is deploy-context (a local deploy, because jetkvm: needs a reachable device) and
+# NON-DESTRUCTIVE as authored: it stops BEFORE any disk step, so it proves the
+# driver + the entity resolution + the transport's input WITHOUT wiping a machine.
+# The actual destructive install is an operator action (see the recipe's disk step).
+check-omarchy-jetkvm-install:
+    local:
+        from: omarchy-jetkvm-install-host
+        host: local
+        disposable: true
+        description: >-
+            Proves the JetKVM install DRIVER: the omarchy-kvm entity is resolved over
+            the reverse channel and its named recipe is walked over the device's USB
+            HID (OCR-gating each screen). Authored to stop before the disk step, so it
+            is safe to run against a live machine.
+        plan:
+            - check: a step naming the omarchy-kvm entity resolves the device and reads it over the reverse channel
+              id: jkai-status
+              jetkvm:
+                  method: status
+                  device: omarchy-kvm
+              stdout:
+                  - contains: "rpc:       true"
+              context: [runtime]
+              eventually: 60s
+              retry_interval: 5s
+            - check: the entity's named `probe` recipe is selected and its step walks over the device (non-destructive, works on any screen)
+              id: jkai-probe
+              jetkvm:
+                  method: install
+                  device: omarchy-kvm
+                  recipe: probe
+                  allow_control: true
+              stdout:
+                  - contains: "step 1"
+              context: [runtime]
+              eventually: 300s
+              retry_interval: 10s
+# check-omarchy-jetkvm-full-install — the DESTRUCTIVE end-to-end: the JetKVM
+# PROVIDES the ISO (fetch + virtual-media mount), the target boots the medium,
+# the recipe drives the configurator to the reboot, and the installed system is
+# made SSH-reachable with Omarchy's own command. An OPERATOR ACTION — it wipes a
+# real disk — so it is never run unattended by CI; the non-destructive
+# check-omarchy-jetkvm-install above is the default.
+#
+# CAPABILITY GATE (a laptop connected only via USB has no ATX/DC): the bed does
+# NOT assume it can power-cycle the target. `OMARCHY_KVM_ATX=0` (or an absent
+# ATX) makes it skip every power RPC and wait for the operator to power the
+# target on — the boot is then OCR-gated, not forced. `OMARCHY_KVM_BOOT_KEY`
+# presses the platform's boot-menu key when the firmware does not boot USB first.
+#
+# Required env: JETKVM_HOST, JETKVM_AUTH_TOKEN, OMARCHY_KVM_* identity answers,
+# OMARCHY_KVM_SSH_PUBKEY (the public half of the flow's generated key).
+check-omarchy-jetkvm-full-install:
+    local:
+        from: omarchy-jetkvm-install-host
+        host: local
+        disposable: true
+        description: >-
+            The full destructive JetKVM install: the device fetches and mounts the
+            Omarchy ISO, the target boots it, the configurator is driven to reboot,
+            and the installed system is SSH-enabled via Omarchy's own command.
+            Operator-authorized (wipes a disk); capability-gated for USB-only/no-ATX
+            targets.
+        plan:
+            - check: the device can fetch the Omarchy ISO (the JetKVM is the media provider)
+              id: jkfull-media-url
+              jetkvm:
+                  method: check-media-url
+                  media_url: "https://iso.omarchy.org/omarchy-4.0.4.iso"
+              stdout:
+                  - contains: "usable"
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 5s
+            - check: the JetKVM mounts the ISO as a virtual CD-ROM (bootable medium, no stick, nothing on the target)
+              id: jkfull-media-mount
+              jetkvm:
+                  method: virtual-media
+                  action: mount-url
+                  media_url: "https://iso.omarchy.org/omarchy-4.0.4.iso"
+                  media_mode: cdrom
+                  allow_control: true
+              context: [runtime]
+              eventually: 600s
+              retry_interval: 10s
+            # POWER/BOOT IS NOT A PLAN STEP, deliberately. A device connected only
+            # via USB (a laptop) has no working ATX/DC, so the bed must NOT assume
+            # it can power-cycle the target. Power the target on and select the USB
+            # medium by whatever the platform offers:
+            #   * ATX-capable:  `charly jetkvm power --action reset` (a separate,
+            #     operator-run command) then the boot-menu key;
+            #   * USB-only:     the operator powers it on and presses the boot-menu
+            #     key (OMARCHY_KVM_BOOT_KEY names it for the keyboard drive).
+            # The greeter OCR gate below is the SYNCHRONISATION: it waits (a real
+            # condition poll) for the installer to be on screen, whatever powered
+            # it there.
+            - check: the target has booted the Omarchy installer (the OCR gate — waits for the medium to boot, however it was powered)
+              id: jkfull-greeter
+              jetkvm:
+                  method: ocr
+                  text: "Press Return to Start Install"
+              context: [runtime]
+              eventually: 900s
+              retry_interval: 15s
+            - check: the full install recipe runs from the greeter to the reboot
+              id: jkfull-install
+              jetkvm:
+                  method: install
+                  device: omarchy-kvm
+                  recipe: install
+                  allow_control: true
+              stdout:
+                  - contains: "step 14"
+              context: [runtime]
+              eventually: 3600s
+              retry_interval: 20s
+            - check: the installed system's first-boot owner wizard is provisioned
+              id: jkfull-first-boot
+              jetkvm:
+                  method: install
+                  device: omarchy-kvm
+                  recipe: first_boot
+                  allow_control: true
+              stdout:
+                  - contains: "step 9"
+              context: [runtime]
+              eventually: 1200s
+              retry_interval: 15s
+            - check: the installed system is SSH-enabled with the flow's key (Omarchy's own command, driven over the TTY)
+              id: jkfull-ssh
+              jetkvm:
+                  method: install
+                  device: omarchy-kvm
+                  recipe: ssh_setup
+                  allow_control: true
+              stdout:
+                  - contains: "step 4"
+              context: [runtime]
+              eventually: 600s
+              retry_interval: 15s
+            - check: eject the virtual medium (the target is no longer booting from it)
+              id: jkfull-unmount
+              jetkvm:
+                  method: virtual-media
+                  action: unmount
+                  allow_control: true
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 5s
+omarchy-jetkvm-install-host:
+    local:
+        description: minimal kind:local template for the JetKVM install bed
+        candy: []
+
 # ── disposable R10 beds ──────────────────────────────────────────────────────────
 # `disposable: true` is the SOLE authorization for the unattended destroy + rebuild
 # `charly check run` performs. Zero operator side-effect: rootless podman, no writes to
