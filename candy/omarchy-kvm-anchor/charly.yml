@@ -1,4 +1,4 @@
-omarchy-kvm:
+omarchy-kvm-anchor:
     candy:
         version: 2026.268.0001
         description: |-
@@ -16,7 +16,7 @@ omarchy-kvm:
             - check: the anchor candy declares the plugin-jetkvm ref that makes the kind:jetkvm provider register at load
               id: omarchy-kvm-anchor-declared
               file:
-                file: candy/omarchy-kvm/charly.yml
+                file: candy/omarchy-kvm-anchor/charly.yml
                 exists: true
               context:
                 - build

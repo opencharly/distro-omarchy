@@ -44,10 +44,17 @@ discover:
 # ── the configurable console-installer device (kind: jetkvm) ──────────────────────
 #
 # The Omarchy installer KNOWLEDGE lives here, with Omarchy — never in the generic
-# KVM plugin (R3 / kernel-boundary law). The recipe is DATA: an ordered list of
-# `wait_for` -> action steps the generic `install` driver walks. The SAME recipe
-# drives a physical machine over a JetKVM (USB HID) and a VM's console over SPICE
-# (spice: wizard) — one authored recipe, either transport.
+# KVM plugin (R3 / kernel-boundary law). The recipes are DATA: ordered lists of
+# `wait_for` -> action steps the generic `install` driver walks. ONE entity
+# carries FOUR recipes — `install`, `first_boot`, `ssh_setup`, `probe` — and the
+# SAME entity/recipes drive either transport (a physical machine over a JetKVM's
+# USB HID, or a VM's console over SPICE via spice: wizard): one authored recipe,
+# either transport.
+#
+# `install` and `first_boot` share the SETUP-FORM steps (keyboard, username,
+# password, full name, email, hostname, timezone) because upstream's own
+# `install/provisioning/setup-form.sh` is the shared source those two Omarchy
+# wizards both call — the duplication mirrors upstream's, deliberately.
 #
 # Anchors are screen-UNIQUE strings (a string present on every screen would pass
 # vacuously and desynchronise the whole drive). Identity/credentials come from the
@@ -186,10 +193,14 @@ omarchy-kvm:
                       action: type
                       text: "{{password}}"
                       description: the owner password
-                    - wait_for: "$"
+                    # The shell prompt is anchored on the USER's own prompt
+                    # ("{{username}}@" — the PS1 shows user@host), NOT a bare "$"
+                    # that is present on every shell screen (the vacuous anchor
+                    # the design forbids). The command is typed AFTER that prompt.
+                    - wait_for: "{{username}}@"
                       action: type
                       text: "omarchy-setup-security-sshd --key=\"{{ssh_pubkey}}\""
-                      description: Omarchy's own SSH setup, with the flow's generated public key
+                      description: Omarchy's own SSH setup, from the user's shell prompt
                     - wait_for: "Authorized key"
                       description: the key was authorized (the command's success line)
             answers:
@@ -253,118 +264,6 @@ check-omarchy-jetkvm-install:
               context: [runtime]
               eventually: 300s
               retry_interval: 10s
-# check-omarchy-jetkvm-full-install — the DESTRUCTIVE end-to-end: the JetKVM
-# PROVIDES the ISO (fetch + virtual-media mount), the target boots the medium,
-# the recipe drives the configurator to the reboot, and the installed system is
-# made SSH-reachable with Omarchy's own command. An OPERATOR ACTION — it wipes a
-# real disk — so it is never run unattended by CI; the non-destructive
-# check-omarchy-jetkvm-install above is the default.
-#
-# CAPABILITY GATE (a laptop connected only via USB has no ATX/DC): the bed does
-# NOT assume it can power-cycle the target. `OMARCHY_KVM_ATX=0` (or an absent
-# ATX) makes it skip every power RPC and wait for the operator to power the
-# target on — the boot is then OCR-gated, not forced. `OMARCHY_KVM_BOOT_KEY`
-# presses the platform's boot-menu key when the firmware does not boot USB first.
-#
-# Required env: JETKVM_HOST, JETKVM_AUTH_TOKEN, OMARCHY_KVM_* identity answers,
-# OMARCHY_KVM_SSH_PUBKEY (the public half of the flow's generated key).
-check-omarchy-jetkvm-full-install:
-    local:
-        from: omarchy-jetkvm-install-host
-        host: local
-        disposable: true
-        description: >-
-            The full destructive JetKVM install: the device fetches and mounts the
-            Omarchy ISO, the target boots it, the configurator is driven to reboot,
-            and the installed system is SSH-enabled via Omarchy's own command.
-            Operator-authorized (wipes a disk); capability-gated for USB-only/no-ATX
-            targets.
-        plan:
-            - check: the device can fetch the Omarchy ISO (the JetKVM is the media provider)
-              id: jkfull-media-url
-              jetkvm:
-                  method: check-media-url
-                  media_url: "https://iso.omarchy.org/omarchy-4.0.4.iso"
-              stdout:
-                  - contains: "usable"
-              context: [runtime]
-              eventually: 120s
-              retry_interval: 5s
-            - check: the JetKVM mounts the ISO as a virtual CD-ROM (bootable medium, no stick, nothing on the target)
-              id: jkfull-media-mount
-              jetkvm:
-                  method: virtual-media
-                  action: mount-url
-                  media_url: "https://iso.omarchy.org/omarchy-4.0.4.iso"
-                  media_mode: cdrom
-                  allow_control: true
-              context: [runtime]
-              eventually: 600s
-              retry_interval: 10s
-            # POWER/BOOT IS NOT A PLAN STEP, deliberately. A device connected only
-            # via USB (a laptop) has no working ATX/DC, so the bed must NOT assume
-            # it can power-cycle the target. Power the target on and select the USB
-            # medium by whatever the platform offers:
-            #   * ATX-capable:  `charly jetkvm power --action reset` (a separate,
-            #     operator-run command) then the boot-menu key;
-            #   * USB-only:     the operator powers it on and presses the boot-menu
-            #     key (OMARCHY_KVM_BOOT_KEY names it for the keyboard drive).
-            # The greeter OCR gate below is the SYNCHRONISATION: it waits (a real
-            # condition poll) for the installer to be on screen, whatever powered
-            # it there.
-            - check: the target has booted the Omarchy installer (the OCR gate — waits for the medium to boot, however it was powered)
-              id: jkfull-greeter
-              jetkvm:
-                  method: ocr
-                  text: "Press Return to Start Install"
-              context: [runtime]
-              eventually: 900s
-              retry_interval: 15s
-            - check: the full install recipe runs from the greeter to the reboot
-              id: jkfull-install
-              jetkvm:
-                  method: install
-                  device: omarchy-kvm
-                  recipe: install
-                  allow_control: true
-              stdout:
-                  - contains: "step 14"
-              context: [runtime]
-              eventually: 3600s
-              retry_interval: 20s
-            - check: the installed system's first-boot owner wizard is provisioned
-              id: jkfull-first-boot
-              jetkvm:
-                  method: install
-                  device: omarchy-kvm
-                  recipe: first_boot
-                  allow_control: true
-              stdout:
-                  - contains: "step 9"
-              context: [runtime]
-              eventually: 1200s
-              retry_interval: 15s
-            - check: the installed system is SSH-enabled with the flow's key (Omarchy's own command, driven over the TTY)
-              id: jkfull-ssh
-              jetkvm:
-                  method: install
-                  device: omarchy-kvm
-                  recipe: ssh_setup
-                  allow_control: true
-              stdout:
-                  - contains: "step 4"
-              context: [runtime]
-              eventually: 600s
-              retry_interval: 15s
-            - check: eject the virtual medium (the target is no longer booting from it)
-              id: jkfull-unmount
-              jetkvm:
-                  method: virtual-media
-                  action: unmount
-                  allow_control: true
-              context: [runtime]
-              eventually: 120s
-              retry_interval: 5s
 omarchy-jetkvm-install-host:
     local:
         description: minimal kind:local template for the JetKVM install bed
