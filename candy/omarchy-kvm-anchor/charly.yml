@@ -1,0 +1,28 @@
+omarchy-kvm-anchor:
+    candy:
+        version: 2026.268.0001
+        description: |-
+            The load-time ANCHOR candy for the `kind: jetkvm` device entity. A flat
+            external `kind` needs a candy-level reference so its plugin enters the
+            loader's scan closure: an `add_candy:`-only reference on a deploy node is
+            NOT seen by `connectDeclaredKindPlugins` (it scans with empty ResolveOpts),
+            so the word parses but the provider never registers and the entity is
+            warn-skipped. This candy's `candy:` list carries the plugin-jetkvm ref
+            that makes the kind provider connect during load (the eval-pr/plugin-
+            pipeline pattern). See the omarchy-jetkvm-install plan's RDD finding B.
+        candy:
+            - '@github.com/opencharly/plugin-jetkvm/candy/plugin-jetkvm:v2026.267.2212'
+        plan:
+            # NON-VACUOUS by construction: the predicate reads ONLY the `candy:`
+            # list block (sed extracts between the `candy:` key and the `plan:`
+            # key), so the check's OWN command text — which lives in the `plan:`
+            # block — is not in the range it greps. Removing the ref line empties
+            # the extracted block and grep fails; the command cannot satisfy
+            # itself. (A same-file `contains:` predicate WOULD be vacuous — the
+            # reviewer's finding — because the literal sits in the file it reads.)
+            - check: the candy's own list carries the plugin ref that makes the kind:jetkvm provider register at load
+              id: omarchy-kvm-anchor-ref
+              command: "sed -n '/^ *candy:/,/^ *plan:/p' candy/omarchy-kvm-anchor/charly.yml | grep -q 'plugin-jetkvm/candy/plugin-jetkvm'"
+              exit_status: 0
+              context:
+                - build

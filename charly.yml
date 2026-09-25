@@ -41,6 +41,82 @@ discover:
     - path: candy
       recursive: true
 
+# ── the configurable console-installer device (kind: jetkvm) ──────────────────────
+#
+# The Omarchy installer KNOWLEDGE lives here, with Omarchy — never in the generic
+# KVM plugin (R3). The recipe is DATA: an ordered `wait_for` -> action list the
+# generic `install` driver walks, driving either transport (a physical machine
+# over a JetKVM's USB HID, or a VM console over SPICE via spice: wizard).
+#
+# THIS CUTOVER ships the proven `probe` recipe + the entity/anchor mechanism +
+# the live media workflow. The `install` / `first_boot` / `ssh_setup` recipes and
+# the answers/answers_env maps are MOVED to the thematic batch
+# (opencharly/distro-omarchy#58): they cannot be exercised live until the KVM's
+# USB target is identified (see the plan + #58), and shipping unproven recipes is
+# forbidden. The batch carries the full block from
+# plan/omarchy-unified-console-install.md §11.
+#
+#   JETKVM_HOST=<device> JETKVM_AUTH_TOKEN=<token> \
+#     charly check run check-omarchy-jetkvm-install
+omarchy-kvm:
+    jetkvm:
+        description: >-
+            The Omarchy console-recipe device: this cutover carries the non-destructive
+            `probe` recipe (the mechanism proof); the installer/first-boot/ssh recipes
+            land with the batch (distro-omarchy#58).
+        installer:
+            recipes:
+                # probe — a SINGLE-STEP, non-destructive recipe: wait for the
+                # Omarchy wordmark (present on the installer AND the installed
+                # desktop) and press a harmless function key. It proves the entity
+                # resolution, the recipe selection, and the transport's input live
+                # on whatever screen the machine is showing. A one-step probe has
+                # no next step to desynchronise against, so its broad anchor is
+                # deliberate (a multi-step wizard's anchors must be screen-unique).
+                probe:
+                    - wait_for: "omarch"
+                      action: key
+                      key: F5
+                      description: wait for the Omarchy wordmark, then press F5 (non-destructive)
+
+check-omarchy-jetkvm-install:
+    local:
+        from: omarchy-jetkvm-install-host
+        host: local
+        disposable: true
+        description: >-
+            Proves the JetKVM install DRIVER: the omarchy-kvm entity is resolved over
+            the reverse channel and its named `probe` recipe is walked over the
+            device's USB HID (OCR-gating the screen). Non-destructive, so it is safe
+            against a live machine.
+        plan:
+            - check: a step naming the omarchy-kvm entity resolves the device and reads it over the reverse channel
+              id: jkai-status
+              jetkvm:
+                  method: status
+                  device: omarchy-kvm
+              stdout:
+                  - contains: "rpc:       true"
+              context: [runtime]
+              eventually: 60s
+              retry_interval: 5s
+            - check: the entity's named `probe` recipe is selected and its step walks over the device (non-destructive, works on any screen)
+              id: jkai-probe
+              jetkvm:
+                  method: install
+                  device: omarchy-kvm
+                  recipe: probe
+                  allow_control: true
+              stdout:
+                  - contains: "step 1"
+              context: [runtime]
+              eventually: 300s
+              retry_interval: 10s
+omarchy-jetkvm-install-host:
+    local:
+        description: minimal kind:local template for the JetKVM install bed
+        candy: []
+
 # ── disposable R10 beds ──────────────────────────────────────────────────────────
 # `disposable: true` is the SOLE authorization for the unattended destroy + rebuild
 # `charly check run` performs. Zero operator side-effect: rootless podman, no writes to
