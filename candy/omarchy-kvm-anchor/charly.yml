@@ -13,16 +13,16 @@ omarchy-kvm-anchor:
         candy:
             - '@github.com/opencharly/plugin-jetkvm/candy/plugin-jetkvm:v2026.267.2212'
         plan:
-            # The check asserts the REF ITSELF, not merely that the file exists:
-            # the candy's whole new behaviour is the `candy:` list entry, so the
-            # check fails if that entry is removed. (A file-exists check would
-            # pass with the ref deleted — the reviewer's finding.)
-            - check: the anchor candy declares the plugin-jetkvm ref that makes the kind:jetkvm provider register at load
-              id: omarchy-kvm-anchor-declared
-              file:
-                file: candy/omarchy-kvm-anchor/charly.yml
-                exists: true
-                contains:
-                  - 'plugin-jetkvm/candy/plugin-jetkvm'
+            # NON-VACUOUS by construction: the predicate reads ONLY the `candy:`
+            # list block (sed extracts between the `candy:` key and the `plan:`
+            # key), so the check's OWN command text — which lives in the `plan:`
+            # block — is not in the range it greps. Removing the ref line empties
+            # the extracted block and grep fails; the command cannot satisfy
+            # itself. (A same-file `contains:` predicate WOULD be vacuous — the
+            # reviewer's finding — because the literal sits in the file it reads.)
+            - check: the candy's own list carries the plugin ref that makes the kind:jetkvm provider register at load
+              id: omarchy-kvm-anchor-ref
+              command: "sed -n '/^ *candy:/,/^ *plan:/p' candy/omarchy-kvm-anchor/charly.yml | grep -q 'plugin-jetkvm/candy/plugin-jetkvm'"
+              exit_status: 0
               context:
                 - build
