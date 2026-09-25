@@ -13,10 +13,16 @@ omarchy-kvm-anchor:
         candy:
             - '@github.com/opencharly/plugin-jetkvm/candy/plugin-jetkvm:v2026.267.2212'
         plan:
+            # The check asserts the REF ITSELF, not merely that the file exists:
+            # the candy's whole new behaviour is the `candy:` list entry, so the
+            # check fails if that entry is removed. (A file-exists check would
+            # pass with the ref deleted — the reviewer's finding.)
             - check: the anchor candy declares the plugin-jetkvm ref that makes the kind:jetkvm provider register at load
               id: omarchy-kvm-anchor-declared
               file:
                 file: candy/omarchy-kvm-anchor/charly.yml
                 exists: true
+                contains:
+                  - 'plugin-jetkvm/candy/plugin-jetkvm'
               context:
                 - build
