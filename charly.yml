@@ -4251,12 +4251,24 @@ cua-container-disk-vm:
         ram: 8G
         cpu: 4
         machine: q35
-        # Omarchy requires Secure Boot OFF.
-        firmware: uefi-insecure
+        # BIOS, NOT uefi-insecure — and this is a measured property of THIS disk, not a
+        # preference. The Cua containerDisk is a KubeVirt disk: Cua's own smoke-test.sh
+        # boots it with bare `qemu -machine q35` (BIOS/SeaBIOS), and spike S3 reproduced the
+        # full guest contract that way. Its limine cmdline carries NO `root=` (the initramfs
+        # resolves root itself), so under OVMF the guest's initramfs reports an empty root and
+        # drops to a dracut emergency shell ("Failed to mount '' on real root") — measured on
+        # the check-cua-container-disk-vm bed. The omarchy-vm TEMPLATE's uefi-insecure applies
+        # to an Omarchy ISO INSTALL (whose installer writes a UEFI layout); it does not apply
+        # to a prebuilt containerDisk, which is a different disk with a different boot chain.
+        firmware: bios
         network: {mode: user}
-        # The image ships sshd (enabled at multi-user.target) + cloud-init + qemu-guest-agent
-        # (measured, S1); cloud-init is how charly injects its generated key.
-        ssh: {user: user, port_auto: true, key_source: generate}
+        # The image's baked account is `omarchy` (uid 1000, /home/omarchy) — NOT `user`.
+        # Measured inside the booted guest: `getent passwd 1000` -> omarchy, and there is no
+        # `user` account at all (charly's key landed in /etc/ssh/authorized_keys.d/user, which
+        # no one reads). The omarchy-vm TEMPLATE's `user` comes from ITS installer config
+        # (username: user); the Cua containerDisk was built by Cua, so it carries a different
+        # account. Naming the wrong one makes sshd reject every login.
+        ssh: {user: omarchy, port_auto: true, key_source: generate}
         backend: libvirt
         libvirt:
             devices:
