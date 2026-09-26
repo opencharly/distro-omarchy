@@ -4238,7 +4238,7 @@ check-cua-omarchy-vm:
             sddm autologin (a stock Omarchy waits at the greeter; a bed has none) and the
             layer-cua candies, and asserts the driver contract: the daemon is up, its own
             doctor reports clean, it exposes its tool catalog, it lists windows, it LAUNCHES
-            a native app (foot) and the launched window appears in its listing, it captures
+            a native app (nautilus) and its launched window, it captures
             the real desktop as a non-uniform PNG, and the opt-in Hyprland plugin — the
             isolated-input path — is LOADED and ABI-matched to the compositor.
             `disposable: true` authorizes the destroy + rebuild.
@@ -4316,10 +4316,10 @@ check-cua-omarchy-vm:
               stdout:
                 - matches: '"width":\s*[1-9][0-9]+'
 
-            # NOTE: the app launched here is `foot`, shipped on the omarchy-vm template this
-            # bed derives from — NOT the Cua Fleet image's `omarchy-terminal`/`inkscape`. The
-            # driver's launch input is `name` (an executable on PATH), measured on this guest:
-            # `launch_app {"name":"foot"}` starts it and it appears in list-windows.
+            # NOTE: the app launched here is `nautilus` (a GUI app that keeps its window),
+            # shipped on the omarchy-vm template this bed derives from — NOT the Cua Fleet
+            # image's `omarchy-terminal`/`inkscape`. The launch input is the schema's `app:`
+            # field (an executable/app on PATH), measured on this guest.
             - check: the driver launches a native app AND reports its window
               id: cua-launch-app
               context: [runtime]
@@ -4346,7 +4346,8 @@ check-cua-omarchy-vm:
             # The launch step above already asserts the driver's launch contract (exit 0); a
             # stable window that OUTLIVES the call is a property of the app/pool, which the
             # sibling check-cua-container-disk-vm bed exercises against Cua's own Fleet image
-            # and its managed pool. Asserting it here would be a timing flake, not a defect.
+            # and its managed pool. The launch step's OWN output carries the window here, so
+            # the window IS asserted above; a separate poll would add nothing.
 
             - check: the opt-in Hyprland plugin is loaded and ABI-matched to the compositor
               id: cua-hyprland-plugin-abi
@@ -4357,7 +4358,7 @@ check-cua-omarchy-vm:
               # HYPRLAND_INSTANCE_SIGNATURE, which a charly step (a non-login SSH shell) does
               # not have. Resolve it from the runtime dir the desktop user's session created.
               # NOTE: the plugin must be LOADED for this to answer — see the producer fix in
-              # opencharly/layer-cua#3 (the candy wrote the include but Omarchy's hyprland.lua
+              # opencharly/layer-cua#4 (the candy wrote the include but Omarchy's hyprland.lua
               # never required it). This step is the CONSUMER proof of that fix.
               command:
                   command: SIG=$(ls /run/user/1000/hypr/ 2>/dev/null | head -1); HYPRLAND_INSTANCE_SIGNATURE="$SIG" XDG_RUNTIME_DIR=/run/user/1000 hyprctl -j cua:status
