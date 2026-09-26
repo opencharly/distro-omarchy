@@ -4142,9 +4142,14 @@ check-cua-omarchy-vm:
             - check: the driver's own platform probes report clean
               id: cua-driver-doctor
               context: [runtime]
+              # `cua-driver doctor` prints one `[ok  ]` / `[warn]` / `[fail]` line per probe.
+              # Assert the report RAN and reports the driver binary at a version (a real
+              # content assertion, not a non-empty-output match): an absent or broken driver
+              # cannot print an `[ok...] binary:` line.
               cua: doctor
               stdout:
-                - matches: ".+"
+                - contains: "[ok"
+                - matches: 'cua-driver [0-9]+\.[0-9]+\.[0-9]+'
 
             - check: the driver exposes its tool catalog
               id: cua-driver-tools
@@ -4198,13 +4203,17 @@ check-cua-omarchy-vm:
             - check: a foreground input action is delivered
               id: cua-foreground-input
               context: [runtime]
+              # The driver answers an input action with a delivery envelope
+              # (`{"delivery":{"mode":"foreground"},"effect":...}`). Assert the FOREGROUND
+              # mode was actually the one used — an absent driver or a refused action cannot
+              # produce it.
               cua:
                   method: type
                   text: "cua-bed-input-ok"
                   delivery: foreground
                   allow_control: true
               stdout:
-                - matches: ".+"
+                - contains: foreground
 
             - check: the opt-in Hyprland plugin is loaded and ABI-matched to the compositor
               id: cua-hyprland-plugin-abi
