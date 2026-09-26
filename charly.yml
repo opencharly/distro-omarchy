@@ -4333,8 +4333,12 @@ check-cua-omarchy-vm:
             - check: the launched app's window appears in the driver's listing
               id: cua-launched-window
               context: [runtime]
-              eventually: 120s
-              retry_interval: 10s
+              # The FIRST GUI app launch on a freshly-deployed VM is slow (font cache, the
+              # xdg-desktop-portal/dbus handshake): measured, the window appears well after
+              # 2 min. Budget generously — the driver DOES list it (verified directly on the
+              # guest: org.gnome.Nautilus, is_on_screen:true).
+              eventually: 420s
+              retry_interval: 15s
               cua: list-windows
               stdout:
                 # The driver reports the app's Wayland app_id, e.g. "org.gnome.Nautilus".
