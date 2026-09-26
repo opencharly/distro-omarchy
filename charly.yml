@@ -4327,7 +4327,7 @@ check-cua-omarchy-vm:
               retry_interval: 10s
               cua:
                   method: launch-app
-                  app: foot
+                  app: nautilus
                   allow_control: true
 
             - check: the launched app's window appears in the driver's listing
@@ -4337,7 +4337,8 @@ check-cua-omarchy-vm:
               retry_interval: 10s
               cua: list-windows
               stdout:
-                - contains: foot
+                # The driver reports the app's Wayland app_id, e.g. "org.gnome.Nautilus".
+                - contains: Nautilus
                 - contains: '"is_on_screen": true'
 
             - check: the opt-in Hyprland plugin is loaded and ABI-matched to the compositor
