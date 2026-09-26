@@ -4119,12 +4119,12 @@ check-cua-omarchy-vm:
             delivered. The Hyprland plugin (the opt-in isolated-input path) is asserted
             loaded and ABI-matched. `disposable: true` authorizes the destroy + rebuild.
         add_candy:
-            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.269.1200'
-            - '@github.com/opencharly/layer-cua/candy/cua-driver:v2026.269.1200'
-            - '@github.com/opencharly/layer-cua/candy/cua-session:v2026.269.1200'
-            - '@github.com/opencharly/layer-cua/candy/cua-computer-server:v2026.269.1200'
-            - '@github.com/opencharly/layer-cua/candy/cua-guest:v2026.269.1200'
-            - '@github.com/opencharly/layer-cua/candy/cua-hyprland-plugin:v2026.269.1200'
+            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.269.1301'
+            - '@github.com/opencharly/layer-cua/candy/cua-driver:v2026.269.1255'
+            - '@github.com/opencharly/layer-cua/candy/cua-session:v2026.269.1255'
+            - '@github.com/opencharly/layer-cua/candy/cua-computer-server:v2026.269.1255'
+            - '@github.com/opencharly/layer-cua/candy/cua-guest:v2026.269.1255'
+            - '@github.com/opencharly/layer-cua/candy/cua-hyprland-plugin:v2026.269.1255'
             - omarchy-autologin
         install_opts:
             allow_root_tasks: true
@@ -4231,3 +4231,104 @@ check-cua-omarchy-vm:
 #  contract. This proves charly can consume a Cua Fleet image WITHOUT KubeVirt — the
 #  "pull and deploy a Cua sandbox/Fleet image locally" capability — against the real
 #  published artifact (pinned by digest), not a synthetic one.
+
+#  cua-container-disk-vm — the CONSUME-half TEMPLATE. A kind:vm entity carrying the
+#  `container_disk` source (spec#171): charly pulls the disk out of the OCI artifact and
+#  boots it through the UNCHANGED libvirt/qemu path. A TEMPLATE carries the full shape
+#  (source + resources + libvirt + ssh); the BED below derives from it via `from:` with
+#  `disposable: true` — the same template/bed split omarchy-vm + check-omarchy-desktop-vm use.
+cua-container-disk-vm:
+    vm:
+        source:
+            kind: container_disk
+            # The published Cua Omarchy Fleet image, pinned by DIGEST (immutable). This is the
+            # exact artifact the S1/S3 spikes inspected and booted.
+            image: public.ecr.aws/k5j5w0x5/cua-omarchy-workspace@sha256:dd09f70f8cd35eca7871dff000538302baad63688a3008803f2238492802d743
+            # cloud_image-like: the disk is prebuilt and charly seeds it through cloud-init, so
+            # the distro selects the guest package NAME/manager/sshd-unit dispatches.
+            distro: omarchy
+        disk_size: 40G
+        ram: 8G
+        cpu: 4
+        machine: q35
+        # Omarchy requires Secure Boot OFF.
+        firmware: uefi-insecure
+        network: {mode: user}
+        # The image ships sshd (enabled at multi-user.target) + cloud-init + qemu-guest-agent
+        # (measured, S1); cloud-init is how charly injects its generated key.
+        ssh: {user: user, port_auto: true, key_source: generate}
+        backend: libvirt
+        libvirt:
+            devices:
+                graphics: [{type: spice, listen: [{type: socket}]}]
+                video: [{model: virtio, vram: 65536, heads: 1, accel3d: false}]
+                rng: [{model: virtio, backend: /dev/urandom}]
+                memballoon: {model: virtio}
+            snippets:
+                - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
+
+#  The BED: derive from the template above, disposable, and assert the guest contract the
+#  image documents. This is the R10 that exercises plugin-vm's container_disk build engine
+#  END TO END — the OCI pull, the index→amd64 manifest resolve, the layer-tar extraction,
+#  the disk-format assert, the cloud-init seed, and the VM boot — against the REAL published
+#  artifact, not a synthetic one. It also exercises plugin-substrate's container_disk
+#  distro-presence validation (the `distro: omarchy` above is required and checked).
+check-cua-container-disk-vm:
+    vm:
+        from: cua-container-disk-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            The CONSUME-half R10 bed for the `container_disk` VM source: pull Cua's OWN
+            published Omarchy Fleet image (a KubeVirt containerDisk) into local storage and
+            boot it through the UNCHANGED libvirt/qemu path — no KubeVirt required — then
+            assert the guest contract the image documents (its driver endpoints + a real
+            desktop). Proves charly can consume a Cua Fleet image locally, end to end.
+        add_candy:
+            # The `cua:` verb is served OUT OF PROCESS by plugin-cua. This image already
+            # SHIPS the driver, so it needs no layer-cua candies — but WITHOUT the plugin-cua
+            # pin the `cua:` steps SKIP as an unknown verb and a skipped step reads as
+            # not-failed, so the driver assertions below would silently assert nothing.
+            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.269.1301'
+        plan:
+            - check: the pulled containerDisk booted the guest to a reachable SSH session
+              id: cua-cd-guest-reachable
+              context: [runtime]
+              eventually: 600s
+              retry_interval: 15s
+              command: "uname -n"
+            - check: the Cua computer-server answers its documented /status contract on :8000
+              id: cua-cd-computer-server-status
+              context: [runtime]
+              eventually: 300s
+              retry_interval: 15s
+              # The computer-server is one of the five user services Cua's image documents;
+              # its /status returns {"status":"ok",...}. A disk that did not boot its
+              # graphical session cannot answer.
+              command: "curl -fsS http://127.0.0.1:8000/status"
+              stdout:
+                - contains: '"status":"ok"'
+            - check: the Cua Driver daemon is running in the desktop session
+              id: cua-cd-driver-status
+              context: [runtime]
+              eventually: 300s
+              retry_interval: 15s
+              cua: status
+              stdout:
+                - contains: running
+            - check: the driver enumerates its full tool surface (a booted, connected driver)
+              id: cua-cd-driver-tools
+              context: [runtime]
+              eventually: 120s
+              cua: list-tools
+              stdout:
+                - matches: '.+'
+            - check: a fresh desktop frame is captured as a real (non-uniform) PNG
+              id: cua-cd-desktop-capture
+              context: [runtime]
+              eventually: 120s
+              cua:
+                  method: get-desktop-state
+                  artifact: /tmp/cua-cd-desktop.png
+                  artifact_min_bytes: 10000
+                  artifact_not_uniform: true
