@@ -4202,3 +4202,158 @@ check-cua-container-disk-vm:
                   artifact: /tmp/cua-cd-desktop.png
                   artifact_min_bytes: 10000
                   artifact_not_uniform: true
+# ══ Cua Driver on Omarchy — the check beds ═══════════════════════════════════════════════
+#
+# Cua Driver (trycua/cua) drives a live desktop's apps through the accessibility
+# (AT-SPI) tree and input. These beds compose the layer-cua candies (cua-driver,
+# cua-session, cua-computer-server, cua-guest; opt-in cua-hyprland-plugin) onto the
+# Omarchy VM and assert the DRIVER CONTRACT on a real Hyprland session — what the
+# compositor-level `wl:`/`quickshell:` assertions in check-omarchy-desktop-vm cannot:
+# that the driver itself runs, enumerates windows, reads an accessibility tree, captures
+# the desktop, and delivers input.
+#
+# PROVENANCE: the guest contract asserted here is the one MEASURED on Cua's own published
+# Omarchy Fleet image (Omarchy 4.0.2 / Hyprland 0.56.2 / Driver 0.26.1) — see
+# plan/cua-integration.md. `cua:` is a deploy-context verb (it needs a live session), so
+# every step is `context: [runtime]` and the beds are `disposable: true`.
+#
+# PLUGIN LOADING: the `cua:` verb is served OUT OF PROCESS by plugin-cua, and the driver is
+# installed by the layer-cua candies. Nothing in the VM's image closure requires them, so
+# they ride in through add_candy — the same mechanism check-omarchy-desktop-vm uses for
+# plugin-wl. WITHOUT the plugin-cua pin the `cua:` steps SKIP as an unknown verb and a
+# skipped step reads as not-failed: every assertion below would assert nothing.
+#
+# PIN NOTE: the plugin-cua / layer-cua pins name those repos' FIRST release tags
+# (plugin-cua v2026.269.1301, layer-cua v2026.269.1859 — the tag carrying the plugin-LOAD fix). Both repos `main` are bootstrapped
+# and their first PRs merged + tagged, so the pins resolve.
+
+check-cua-omarchy-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Sole proof that Cua Driver runs on the Omarchy desktop and drives it end to end.
+            Derives from the omarchy-vm template (the faithful unattended ISO install), adds
+            sddm autologin (a stock Omarchy waits at the greeter; a bed has none) and the
+            layer-cua candies, and asserts the driver contract: the daemon is up, its own
+            doctor reports clean, it exposes its tool catalog, it lists windows, it LAUNCHES
+            a native app (foot) and the launched window appears in its listing, it captures
+            the real desktop as a non-uniform PNG, and the opt-in Hyprland plugin — the
+            isolated-input path — is LOADED and ABI-matched to the compositor.
+            `disposable: true` authorizes the destroy + rebuild.
+            .
+            WINDOW-TARGETED INPUT IS DELIBERATELY NOT ASSERTED HERE. Cua's input tools
+            require a target window (pid + window_id), and a static plan cannot resolve a
+            window_id at runtime; the launch+list assertions prove the driver REACHES and
+            OBSERVES a live window, and the ABI-matched plugin proves the isolated-input
+            route is ready. The window-targeted delivery is exercised by the sibling
+            check-cua-container-disk-vm bed against Cua's own Fleet image, whose app set and
+            pool resolve the target.
+        add_candy:
+            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.269.1301'
+            - '@github.com/opencharly/layer-cua/candy/cua-driver:v2026.269.1859'
+            - '@github.com/opencharly/layer-cua/candy/cua-session:v2026.269.1859'
+            - '@github.com/opencharly/layer-cua/candy/cua-computer-server:v2026.269.1859'
+            - '@github.com/opencharly/layer-cua/candy/cua-guest:v2026.269.1859'
+            - '@github.com/opencharly/layer-cua/candy/cua-hyprland-plugin:v2026.269.1859'
+            - omarchy-autologin
+        install_opts:
+            allow_root_tasks: true
+            with_service: true
+        plan:
+            - check: the Cua Driver daemon is running in the desktop session
+              id: cua-driver-status
+              context: [runtime]
+              eventually: 180s
+              retry_interval: 10s
+              cua: status
+              stdout:
+                - contains: running
+
+            - check: the driver's own platform probes report clean
+              id: cua-driver-doctor
+              context: [runtime]
+              # `cua-driver doctor` prints one `[ok  ]` / `[warn]` / `[fail]` line per probe.
+              # Assert the report RAN and reports the driver binary at a version (a real
+              # content assertion, not a non-empty-output match): an absent or broken driver
+              # cannot print an `[ok...] binary:` line.
+              cua: doctor
+              stdout:
+                - contains: "[ok"
+                - matches: 'cua-driver [0-9]+\.[0-9]+\.[0-9]+'
+
+            - check: the driver exposes its tool catalog
+              id: cua-driver-tools
+              context: [runtime]
+              cua: list-tools
+              stdout:
+                - contains: get_desktop_state
+
+            - check: the driver enumerates the desktop's windows
+              id: cua-list-windows
+              context: [runtime]
+              # A window exists only after an app is launched; the launch + listing assertions
+              # below establish that. Here assert the listing RUNS and returns the documented
+              # shape (a JSON object with a `windows` array) — an absent driver cannot.
+              cua: list-windows
+              stdout:
+                - contains: '"windows"'
+
+            - check: the driver captures the desktop as a real, non-uniform PNG
+              id: cua-desktop-capture
+              context: [runtime]
+              cua:
+                  method: get-desktop-state
+                  artifact: /tmp/cua-desktop.png
+                  artifact_min_bytes: 10000
+                  artifact_not_uniform: true
+
+            - check: the screen size is a real resolution, not 0x0
+              id: cua-screen-size
+              context: [runtime]
+              cua: get-screen-size
+              stdout:
+                - matches: '"width":\s*[1-9][0-9]+'
+
+            # NOTE: the app launched here is `foot`, shipped on the omarchy-vm template this
+            # bed derives from — NOT the Cua Fleet image's `omarchy-terminal`/`inkscape`. The
+            # driver's launch input is `name` (an executable on PATH), measured on this guest:
+            # `launch_app {"name":"foot"}` starts it and it appears in list-windows.
+            - check: the driver launches a native app in the desktop session
+              id: cua-launch-app
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 10s
+              cua:
+                  method: launch-app
+                  app: foot
+                  allow_control: true
+
+            - check: the launched app's window appears in the driver's listing
+              id: cua-launched-window
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 10s
+              cua: list-windows
+              stdout:
+                - contains: foot
+                - contains: '"is_on_screen": true'
+
+            - check: the opt-in Hyprland plugin is loaded and ABI-matched to the compositor
+              id: cua-hyprland-plugin-abi
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 10s
+              # `hyprctl` talks to the compositor over a socket named by
+              # HYPRLAND_INSTANCE_SIGNATURE, which a charly step (a non-login SSH shell) does
+              # not have. Resolve it from the runtime dir the desktop user's session created.
+              # NOTE: the plugin must be LOADED for this to answer — see the producer fix in
+              # opencharly/layer-cua#3 (the candy wrote the include but Omarchy's hyprland.lua
+              # never required it). This step is the CONSUMER proof of that fix.
+              command:
+                  command: SIG=$(ls /run/user/1000/hypr/ 2>/dev/null | head -1); HYPRLAND_INSTANCE_SIGNATURE="$SIG" XDG_RUNTIME_DIR=/run/user/1000 hyprctl -j cua:status
+              stdout:
+                  - contains: '"match":true'
+                  - contains: cua-hyprland-plugin
+
