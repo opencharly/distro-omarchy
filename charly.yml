@@ -4078,3 +4078,147 @@ omarchy-vm-skill:
 
             - `/charly-distros:omarchy` — the base image these install
             - `/charly-vm:vms-catalog` — authoring reference for `kind: vm` entities
+
+# ══ Cua Driver on Omarchy — the check beds ═══════════════════════════════════════════════
+#
+# Cua Driver (trycua/cua) drives a live desktop's apps through the accessibility
+# (AT-SPI) tree and input. These beds compose the layer-cua candies (cua-driver,
+# cua-session, cua-computer-server, cua-guest; opt-in cua-hyprland-plugin) onto the
+# Omarchy VM and assert the DRIVER CONTRACT on a real Hyprland session — what the
+# compositor-level `wl:`/`quickshell:` assertions in check-omarchy-desktop-vm cannot:
+# that the driver itself runs, enumerates windows, reads an accessibility tree, captures
+# the desktop, and delivers input.
+#
+# PROVENANCE: the guest contract asserted here is the one MEASURED on Cua's own published
+# Omarchy Fleet image (Omarchy 4.0.2 / Hyprland 0.56.2 / Driver 0.26.1) — see
+# plan/cua-integration.md. `cua:` is a deploy-context verb (it needs a live session), so
+# every step is `context: [runtime]` and the beds are `disposable: true`.
+#
+# PLUGIN LOADING: the `cua:` verb is served OUT OF PROCESS by plugin-cua, and the driver is
+# installed by the layer-cua candies. Nothing in the VM's image closure requires them, so
+# they ride in through add_candy — the same mechanism check-omarchy-desktop-vm uses for
+# plugin-wl. WITHOUT the plugin-cua pin the `cua:` steps SKIP as an unknown verb and a
+# skipped step reads as not-failed: every assertion below would assert nothing.
+#
+# PIN NOTE: the plugin-cua / layer-cua pins name the FIRST release tags. They resolve once
+# those repos' `main` branches are bootstrapped (operator action, per their issue #1) and
+# their feat/cua branches land + tag.
+
+check-cua-omarchy-vm:
+    vm:
+        from: omarchy-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            Sole proof that Cua Driver runs on the Omarchy desktop and drives it end to end.
+            Derives from the omarchy-vm template (the faithful unattended ISO install), adds
+            sddm autologin (a stock Omarchy waits at the greeter; a bed has none) and the
+            layer-cua candies, and asserts the driver contract: the daemon is up, it
+            enumerates windows, it reads an AT-SPI accessibility tree on a native app, it
+            captures the real desktop as a non-uniform PNG, and a foreground input action is
+            delivered. The Hyprland plugin (the opt-in isolated-input path) is asserted
+            loaded and ABI-matched. `disposable: true` authorizes the destroy + rebuild.
+        add_candy:
+            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.269.1200'
+            - '@github.com/opencharly/layer-cua/candy/cua-driver:v2026.269.1200'
+            - '@github.com/opencharly/layer-cua/candy/cua-session:v2026.269.1200'
+            - '@github.com/opencharly/layer-cua/candy/cua-computer-server:v2026.269.1200'
+            - '@github.com/opencharly/layer-cua/candy/cua-guest:v2026.269.1200'
+            - '@github.com/opencharly/layer-cua/candy/cua-hyprland-plugin:v2026.269.1200'
+            - omarchy-autologin
+        install_opts:
+            allow_root_tasks: true
+            with_service: true
+        plan:
+            - check: the Cua Driver daemon is running in the desktop session
+              id: cua-driver-status
+              context: [runtime]
+              eventually: 180s
+              retry_interval: 10s
+              cua: status
+              stdout:
+                - contains: running
+
+            - check: the driver's own platform probes report clean
+              id: cua-driver-doctor
+              context: [runtime]
+              cua: doctor
+              stdout:
+                - matches: ".+"
+
+            - check: the driver exposes its tool catalog
+              id: cua-driver-tools
+              context: [runtime]
+              cua: list-tools
+              stdout:
+                - contains: get_desktop_state
+
+            - check: the driver enumerates the desktop's windows
+              id: cua-list-windows
+              context: [runtime]
+              cua: list-windows
+              stdout:
+                - contains: omarchy-terminal
+
+            - check: the driver captures the desktop as a real, non-uniform PNG
+              id: cua-desktop-capture
+              context: [runtime]
+              cua:
+                  method: get-desktop-state
+                  artifact: /tmp/cua-desktop.png
+                  artifact_min_bytes: 10000
+                  artifact_not_uniform: true
+
+            - check: the screen size is a real resolution, not 0x0
+              id: cua-screen-size
+              context: [runtime]
+              cua: get-screen-size
+              stdout:
+                - matches: '"width":\s*[1-9][0-9]+'
+
+            - check: launch a native (GTK) app so the driver can read its accessibility tree
+              id: cua-launch-inkscape
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 10s
+              cua:
+                  method: launch-app
+                  app: inkscape
+                  allow_control: true
+
+            - check: the launched app's window appears in the driver's listing
+              id: cua-inkscape-window
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 10s
+              cua: list-windows
+              stdout:
+                - contains: Inkscape
+
+            - check: a foreground input action is delivered
+              id: cua-foreground-input
+              context: [runtime]
+              cua:
+                  method: type
+                  text: "cua-bed-input-ok"
+                  delivery: foreground
+                  allow_control: true
+              stdout:
+                - matches: ".+"
+
+            - check: the opt-in Hyprland plugin is loaded and ABI-matched to the compositor
+              id: cua-hyprland-plugin-abi
+              context: [runtime]
+              eventually: 120s
+              retry_interval: 10s
+              command:
+                  command: hyprctl -j cua:status
+              stdout:
+                  - contains: '"match":true'
+                  - contains: cua-hyprland-plugin
+
+#  The CONSUME bed: pull Cua's OWN published Omarchy Fleet image (a KubeVirt containerDisk)
+#  and boot it locally with the `container_disk` VM source, then assert the same driver
+#  contract. This proves charly can consume a Cua Fleet image WITHOUT KubeVirt — the
+#  "pull and deploy a Cua sandbox/Fleet image locally" capability — against the real
+#  published artifact (pinned by digest), not a synthetic one.
