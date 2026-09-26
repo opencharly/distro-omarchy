@@ -5,3 +5,6 @@
 output/
 *.bak*
 *.log
+
+# VM build output (charly vm build writes the disk + seed + build stamp here)
+image/
