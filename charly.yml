@@ -4100,9 +4100,9 @@ omarchy-vm-skill:
 # plugin-wl. WITHOUT the plugin-cua pin the `cua:` steps SKIP as an unknown verb and a
 # skipped step reads as not-failed: every assertion below would assert nothing.
 #
-# PIN NOTE: the plugin-cua / layer-cua pins name the FIRST release tags. They resolve once
-# those repos' `main` branches are bootstrapped (operator action, per their issue #1) and
-# their feat/cua branches land + tag.
+# PIN NOTE: the plugin-cua / layer-cua pins name those repos' FIRST release tags
+# (plugin-cua v2026.269.1301, layer-cua v2026.269.1255). Both repos' `main` are bootstrapped
+# and their first PRs merged + tagged, so the pins resolve.
 
 check-cua-omarchy-vm:
     vm:
@@ -4332,9 +4332,14 @@ check-cua-container-disk-vm:
               id: cua-cd-driver-tools
               context: [runtime]
               eventually: 120s
+              # The driver lists its tools as JSON (a JSON array of {name, description}).
+              # Assert a tool that only exists on a booted, connected driver — an empty
+              # list or a dead driver cannot produce it. (A `.+` match would pass on any
+              # non-empty output and assert nothing about the tool surface.)
               cua: list-tools
               stdout:
-                - matches: '.+'
+                - contains: bring_to_front
+                - contains: click
             - check: a fresh desktop frame is captured as a real (non-uniform) PNG
               id: cua-cd-desktop-capture
               context: [runtime]
