@@ -4466,7 +4466,6 @@ check-cua-fleet-build-local:
                   ${CHARLY_BIN} vm bake cua-container-disk-vm --from-snapshot golden \
                     --container-disk --push localhost:5099/cua-produced:1
                 in_container: false
-                run_as: "${USER}"
               stdout:
                 - contains: "pushed VM box localhost:5099/cua-produced:1"
             - check: the pushed artifact is a containerDisk (a single +gzip OCI layer)
@@ -4491,6 +4490,5 @@ check-cua-fleet-build-local:
                   test -n "$host"
                   echo "CUA-PRODUCED-BOOT-OK host=$host"
                 in_container: false
-                run_as: "${USER}"
               stdout:
                 - contains: "CUA-PRODUCED-BOOT-OK"
