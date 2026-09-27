@@ -4430,6 +4430,7 @@ check-cua-fleet-build-local:
             - check: bake a Cua Fleet containerDisk and push it to a scratch registry
               id: cua-produce-bake
               context: [runtime]
+              timeout: 3600s
               command:
                 command: |
                   set -eu
@@ -4480,6 +4481,7 @@ check-cua-fleet-build-local:
             - check: the PRODUCED containerDisk boots a reachable guest (the round-trip)
               id: cua-produce-boot
               context: [runtime]
+              timeout: 3600s
               command:
                 command: |
                   set -eu
