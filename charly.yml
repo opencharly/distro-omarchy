@@ -4446,13 +4446,14 @@ check-cua-fleet-build-local:
                     curl -fsS http://localhost:5099/v2/ >/dev/null 2>&1 && break
                     sleep 1
                   done
-                  cat > /tmp/cua-produce-registries.conf <<'REG'
+                  export CONTAINERS_REGISTRIES_CONF=/tmp/cua-produce-registries.conf
+                  rm -f "$CONTAINERS_REGISTRIES_CONF"
+                  cat > "$CONTAINERS_REGISTRIES_CONF" <<'REG'
                   [[registry]]
                   prefix = "localhost:5099"
                   location = "localhost:5099"
                   insecure = true
                   REG
-                  export CONTAINERS_REGISTRIES_CONF=/tmp/cua-produce-registries.conf
                   # base guest disk (pull the published Cua Fleet containerDisk)
                   ${CHARLY_BIN} vm build cua-container-disk-vm
                   # boot it, force-stop (the Cua guest ignores ACPI), capture the golden — ONCE
