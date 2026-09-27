@@ -4433,10 +4433,15 @@ check-cua-fleet-build-local:
               command:
                 command: |
                   set -eu
-                  # scratch registry (insecure), REUSED across the deploy-add + check-live passes
-                  if ! podman container exists cua-produce-registry; then
-                    podman run -d --name cua-produce-registry -p 5099:5000 registry:2 >/dev/null
-                  fi
+                  # A CLEAN scratch registry (insecure). Remove any stale container from a
+                  # prior pass (rootful OR rootless), wait for the port, then start it.
+                  podman rm -f cua-produce-registry >/dev/null 2>&1 || true
+                  sudo -n podman rm -f cua-produce-registry >/dev/null 2>&1 || true
+                  for i in $(seq 1 20); do
+                    ss -ltn 2>/dev/null | grep -q ':5099 ' || break
+                    sleep 1
+                  done
+                  podman run -d --name cua-produce-registry -p 5099:5000 registry:2 >/dev/null
                   for i in $(seq 1 30); do
                     curl -fsS http://localhost:5099/v2/ >/dev/null 2>&1 && break
                     sleep 1
@@ -4461,6 +4466,7 @@ check-cua-fleet-build-local:
                   ${CHARLY_BIN} vm bake cua-container-disk-vm --from-snapshot golden \
                     --container-disk --push localhost:5099/cua-produced:1
                 in_container: false
+                run_as: "${USER}"
               stdout:
                 - contains: "pushed VM box localhost:5099/cua-produced:1"
             - check: the pushed artifact is a containerDisk (a single +gzip OCI layer)
@@ -4485,5 +4491,6 @@ check-cua-fleet-build-local:
                   test -n "$host"
                   echo "CUA-PRODUCED-BOOT-OK host=$host"
                 in_container: false
+                run_as: "${USER}"
               stdout:
                 - contains: "CUA-PRODUCED-BOOT-OK"
