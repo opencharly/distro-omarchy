@@ -4487,9 +4487,16 @@ check-cua-fleet-build-local:
                   set -eu
                   export CONTAINERS_REGISTRIES_CONF=/tmp/cua-produce-registries.conf
                   ${CHARLY_BIN} vm build cua-produced-consume-vm
+                  ${CHARLY_BIN} vm destroy cua-produced-consume-vm --disk --if-exists 2>/dev/null || true
                   ${CHARLY_BIN} vm create cua-produced-consume-vm
-                  host="$(${CHARLY_BIN} vm ssh cua-produced-consume-vm -- uname -n 2>/dev/null || true)"
-                  ${CHARLY_BIN} vm destroy cua-produced-consume-vm --disk
+                  # the guest needs its first boot (cloud-init + sshd) before ssh answers
+                  host=""
+                  for i in $(seq 1 40); do
+                    host="$(${CHARLY_BIN} vm ssh cua-produced-consume-vm -- uname -n 2>/dev/null || true)"
+                    [ -n "$host" ] && break
+                    sleep 15
+                  done
+                  ${CHARLY_BIN} vm destroy cua-produced-consume-vm --disk 2>/dev/null || true
                   test -n "$host"
                   echo "CUA-PRODUCED-BOOT-OK host=$host"
                 in_container: false
