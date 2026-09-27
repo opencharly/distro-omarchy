@@ -4486,8 +4486,10 @@ check-cua-fleet-build-local:
                 command: |
                   set -eu
                   export CONTAINERS_REGISTRIES_CONF=/tmp/cua-produce-registries.conf
-                  ${CHARLY_BIN} vm build cua-produced-consume-vm
+                  # clean any stale domain + its disk FIRST (a destroy AFTER the build would
+                  # remove the disk the build just materialized)
                   ${CHARLY_BIN} vm destroy cua-produced-consume-vm --disk --if-exists 2>/dev/null || true
+                  ${CHARLY_BIN} vm build cua-produced-consume-vm
                   ${CHARLY_BIN} vm create cua-produced-consume-vm
                   # the guest needs its first boot (cloud-init + sshd) before ssh answers
                   host=""
