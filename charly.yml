@@ -4375,10 +4375,12 @@ check-cua-omarchy-vm:
 #  PRODUCED artifact — the R10 the plugin-vm#50 bake change named as its consumer.
 #
 #  The produce path is a HOST-side orchestration (build the disk -> capture the golden ->
-#  bake -> emit -> push -> pull -> boot). A bed's own `plan:` runs verify-only, so the
-#  mutation lives in a COMPOSED CANDY's `run:` steps (the documented mechanism) and this
-#  bed is a `host: local` deploy — its candy's run steps execute on the operator's host
-#  through the active charly binary.
+#  bake -> emit -> push -> pull -> boot). A bed's own `run:` step is verify-only, so the
+#  mutation cannot live there; and a COMPOSED CANDY's `run:` step does NOT resolve
+#  ${CHARLY_BIN} on a `host: local` deploy (the install-plan lowering, unlike the check-var
+#  resolver — observed live). The bed therefore drives the produce path from its OWN
+#  `check:` steps, where ${CHARLY_BIN} IS resolved; those steps run at BOTH `deploy-add`
+#  and `check-live`, so they are authored idempotent and carry an explicit `timeout:`.
 
 #  cua-produced-consume-vm — the containerDisk the produce bed publishes, consumed back.
 cua-produced-consume-vm:
@@ -4403,6 +4405,26 @@ cua-produced-consume-vm:
                 memballoon: {model: virtio}
             snippets:
                 - "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
+
+cua-container-disk-produce:
+    vm:
+        from: cua-container-disk-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            The DISPOSABLE produce deploy. Its per-domain disk is the golden's backing and
+            the bake's non-destructive boot target. Declaring it as a `vm:` DEPLOY (not on
+            the shared `cua-container-disk-vm` entity) is what authorizes the bed's
+            create/destroy — a `kind: vm` ENTITY cannot carry `disposable:`.
+
+cua-produced-consume:
+    vm:
+        from: cua-produced-consume-vm
+        disposable: true
+        lifecycle: dev
+        description: >-
+            The DISPOSABLE consume deploy for the produce bed: boots the containerDisk the
+            bed itself published, so its create/boot/destroy is authorized by the deploy.
 
 cua-produce-app:
     local:
@@ -4459,13 +4481,13 @@ check-cua-fleet-build-local:
                   ${CHARLY_BIN} vm build cua-container-disk-vm
                   # boot it, force-stop (the Cua guest ignores ACPI), capture the golden — ONCE
                   if ! ${CHARLY_BIN} vm snapshot list cua-container-disk-vm 2>/dev/null | grep -q '^golden'; then
-                    ${CHARLY_BIN} vm create cua-container-disk-vm
-                    ${CHARLY_BIN} vm stop cua-container-disk-vm --force
-                    ${CHARLY_BIN} vm snapshot create cua-container-disk-vm golden
-                    ${CHARLY_BIN} vm destroy cua-container-disk-vm
+                    ${CHARLY_BIN} vm create cua-container-disk-vm --domain cua-container-disk-produce
+                    ${CHARLY_BIN} vm stop cua-container-disk-vm --domain cua-container-disk-produce --force
+                    ${CHARLY_BIN} vm snapshot create cua-container-disk-vm golden --domain cua-container-disk-produce
+                    ${CHARLY_BIN} vm destroy cua-container-disk-vm --domain cua-container-disk-produce --disk
                   fi
                   # bake -> emit the containerDisk -> push
-                  ${CHARLY_BIN} vm bake cua-container-disk-vm --from-snapshot golden \
+                  ${CHARLY_BIN} vm bake cua-container-disk-vm --from-snapshot golden --domain cua-container-disk-produce \
                     --container-disk --push localhost:5099/cua-produced:1
                 in_container: false
               stdout:
@@ -4488,17 +4510,17 @@ check-cua-fleet-build-local:
                   export CONTAINERS_REGISTRIES_CONF=/tmp/cua-produce-registries.conf
                   # clean any stale domain + its disk FIRST (a destroy AFTER the build would
                   # remove the disk the build just materialized)
-                  ${CHARLY_BIN} vm destroy cua-produced-consume-vm --disk --if-exists 2>/dev/null || true
+                  ${CHARLY_BIN} vm destroy cua-produced-consume-vm --domain cua-produced-consume --disk --if-exists 2>/dev/null || true
                   ${CHARLY_BIN} vm build cua-produced-consume-vm
-                  ${CHARLY_BIN} vm create cua-produced-consume-vm
+                  ${CHARLY_BIN} vm create cua-produced-consume-vm --domain cua-produced-consume
                   # the guest needs its first boot (cloud-init + sshd) before ssh answers
                   host=""
                   for i in $(seq 1 40); do
-                    host="$(${CHARLY_BIN} vm ssh cua-produced-consume-vm -- uname -n 2>/dev/null || true)"
+                    host="$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR charly-cua-produced-consume -- uname -n 2>/dev/null || true)"
                     [ -n "$host" ] && break
                     sleep 15
                   done
-                  ${CHARLY_BIN} vm destroy cua-produced-consume-vm --disk 2>/dev/null || true
+                  ${CHARLY_BIN} vm destroy cua-produced-consume-vm --domain cua-produced-consume --disk 2>/dev/null || true
                   test -n "$host"
                   echo "CUA-PRODUCED-BOOT-OK host=$host"
                 in_container: false
