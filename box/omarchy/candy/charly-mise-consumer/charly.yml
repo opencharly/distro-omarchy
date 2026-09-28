@@ -1,6 +1,5 @@
 charly-mise-consumer:
     candy:
-        version: 2026.242.0000
         description: |-
             Consumer candy for the check-charly-mise omarchy bed. SHIPS a mise.toml
             declaring github:opencharly/charly (pinned CalVer) so the embedded
