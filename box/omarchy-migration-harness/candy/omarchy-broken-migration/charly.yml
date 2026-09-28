@@ -1,6 +1,5 @@
 omarchy-broken-migration:
     candy:
-        version: 2026.243.0000
         description: |
             The S5 known-red fixture: installs a deliberately broken migration
             (one that never creates its marker file, so it stays pending forever).
