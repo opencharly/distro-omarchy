@@ -1,6 +1,5 @@
 omarchy-kvm-anchor:
     candy:
-        version: 2026.268.0001
         description: |-
             The load-time ANCHOR candy for the `kind: jetkvm` device entity. A flat
             external `kind` needs a candy-level reference so its plugin enters the
