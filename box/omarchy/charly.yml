@@ -1,6 +1,5 @@
 omarchy:
     candy:
-        version: 2026.242.0000
         # The canonical Omarchy base image, and the POD-SAFE floor.
         #
         # base: arch.arch — the plain Arch base from distro-arch, not the Omarchy ISO.
@@ -89,7 +88,6 @@ omarchy:
 # plugin-mise curl-tar candy (R3: one canonical implementation).
 charly-mise-builder:
     candy:
-        version: 2026.242.0000
         base: omarchy
         build:
             - pac
@@ -106,7 +104,6 @@ charly-mise-builder:
 
 check-charly-mise:
     candy:
-        version: 2026.242.0000
         base: omarchy
         builder:
             mise: charly-mise-builder

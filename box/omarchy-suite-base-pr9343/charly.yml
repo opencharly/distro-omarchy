@@ -1,6 +1,5 @@
 omarchy-suite-base-pr9343:
     candy:
-        version: 2026.243.0000
         description: |
             The S2 PR-injection image: the suite-base image with PR #9343
             (omacom/omarchy) applied at BUILD time via the omarchy-pr-9343 candy,

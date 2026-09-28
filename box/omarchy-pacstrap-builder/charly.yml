@@ -1,6 +1,5 @@
 omarchy-pacstrap-builder:
     candy:
-        version: 2026.242.0000
         # The privileged builder for the `kind: bootstrap` / `builder: pacstrap` VM path.
         # It runs pacstrap, partitions the disk, makes the filesystems and installs the
         # boot chain into the mounted target, under `charly vm build omarchy-pacstrap-vm`.

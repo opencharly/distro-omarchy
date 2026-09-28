@@ -1,6 +1,5 @@
 omarchy-suite-base-red:
     candy:
-        version: 2026.243.0000
         description: |
             The S2 known-red image: the suite-base image with UPSTREAM MAIN's
             omarchy-migrate installed (the omarchy-pr-red fixture) plus the same
