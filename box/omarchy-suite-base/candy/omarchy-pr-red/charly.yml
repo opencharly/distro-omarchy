@@ -1,6 +1,5 @@
 omarchy-pr-red:
     candy:
-        version: 2026.243.0000
         description: |
             The S2 known-red fixture: installs UPSTREAM MAIN's omarchy-migrate
             (which exits 1 silently on a missing migrations dir) instead of PR
