@@ -1,6 +1,5 @@
 omarchy-keeper-tools:
     candy:
-        version: 2026.247.1400
         description: |
             The keeper-golden tooling payload for the omarchy channel bases: acpid (fast
             ACPI shutdown — channel evals shut down in seconds, not the graceful-stop
