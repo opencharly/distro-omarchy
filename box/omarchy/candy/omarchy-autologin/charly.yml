@@ -1,6 +1,5 @@
 omarchy-autologin:
     candy:
-        version: 2026.243.0532
         description: |
             Starts a graphical session without a human at the keyboard, by writing an sddm
             autologin drop-in. A stock Omarchy boots to the sddm greeter and WAITS — correct
