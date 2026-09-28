@@ -1,6 +1,5 @@
 omarchy-channel-bootstrap:
     candy:
-        version: 2026.247.1300
         description: |
             The ONE channel-bootstrap helper for the omarchy keeper lanes (T11 —
             single source; R3: no duplicated channel-set + update + roundtrip blocks
