@@ -1,6 +1,5 @@
 omarchy-pr-9345:
     candy:
-        version: 2026.243.0000
         description: |
             Applies PR #9345 (omacom/omarchy) to the omarchy system at BUILD time:
             fetches the PR head and installs its changed files over the installed
