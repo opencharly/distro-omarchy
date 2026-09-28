@@ -1,6 +1,5 @@
 omarchy-migration-harness-red:
     candy:
-        version: 2026.243.0000
         description: |
             The S5 known-red image: the migration harness with a deliberately
             broken migration installed (omarchy-broken-migration — a migration

@@ -1,6 +1,5 @@
 omarchy-migration-harness:
     candy:
-        version: 2026.243.0000
         description: |
             The S5 migration idempotence harness: applies all pending omarchy
             migrations at BUILD time (a candy run step — the install timeline, as
