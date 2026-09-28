@@ -1,6 +1,5 @@
 omarchy-pr-9343:
     candy:
-        version: 2026.243.0000
         description: |
             Applies PR #9343 (omacom/omarchy) to the omarchy system at BUILD time:
             fetches the PR head and installs its changed files over the installed
