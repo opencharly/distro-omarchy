@@ -94,7 +94,7 @@ charly-mise-builder:
         platform:
             - linux/amd64
         candy:
-            - '@github.com/opencharly/plugin-mise/candy/curl-tar:v2026.272.1055'
+            - '@github.com/opencharly/plugin-mise/candy/curl-tar:v2026.274.0618'
         description: |-
             Omarchy stage base for the mise builder (curl+tar toolchain) — based on the
             REAL omarchy box so the whole check-charly-mise image chain is Omarchy. The
