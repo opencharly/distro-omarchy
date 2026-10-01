@@ -33,7 +33,7 @@ defaults:
 import:
     # The Arch base and builder stack lives in opencharly/distro-arch. One-directional:
     # arch imports nothing back.
-    - arch: '@github.com/opencharly/distro-arch:v2026.250.0229'
+    - arch: '@github.com/opencharly/distro-arch:v2026.273.0909'
 discover:
     - path: box
       recursive: true
@@ -159,8 +159,8 @@ check-omarchy-cstream-pod:
             # WITHOUT these pins the steps do not fail: they SKIP as an unknown verb, and a
             # skipped step reads as not-failed in the summary. Every assertion below would
             # then assert nothing while the bed reported green.
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
-            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1942'
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.272.0438'
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.272.0445'
         plan:
             # ── the GUI subset, mirroring check-omarchy-desktop-vm ───────────────────────
             # This bed had NO plan at all. Its description — and the omarchy-cstream box's —
@@ -429,8 +429,8 @@ check-omarchy-hybrid-gpu-vm:
             complete.
         requires_exclusive: [nvidia-gpu]
         add_candy:
-            - '@github.com/opencharly/layer-nvidia:v2026.245.1541'
-            - '@github.com/opencharly/plugin-omarchy/candy/plugin-omarchy:v2026.244.1401'
+            - '@github.com/opencharly/layer-nvidia:v2026.271.1817'
+            - '@github.com/opencharly/plugin-omarchy/candy/plugin-omarchy:v2026.272.0721'
             # auto-login: every check VM must reach a working desktop unattended
             # and keep recordings/screenshots on the logged-in session.
             - omarchy-autologin
@@ -1252,7 +1252,7 @@ charly-omarchy:
             # charly installs as a NATIVE pac package from the charly-arch repo. omarchy
             # inherits arch's packaging (distro: [omarchy, arch]), so the layer's `arch:`
             # section applies unchanged and nothing omarchy-specific is needed here.
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
         install_opts:
             # The layer adds the [charly] pacman repo and imports its signing key, which
             # is a repo change by definition.
@@ -1288,7 +1288,7 @@ charly-omarchy-rc:
             golden snapshot; auto-login composed (unattended desktop for visual/recorded
             eval steps).
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -1322,7 +1322,7 @@ charly-omarchy-edge:
             builds + Arch packages) via omarchy-channel-set + omarchy update. Lane-owned;
             clean golden snapshot; auto-login composed.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -1357,7 +1357,7 @@ charly-omarchy-dev:
             lane: a PR is applied by checking out its head in ~/omarchy. Lane-owned; clean
             golden snapshot; auto-login.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -1547,7 +1547,7 @@ check-charly-omarchy-vm:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             # auto-login: this bed proves the toolchain deploy, and the desktop
             # must also come up unattended (recordings/screenshots show it).
             - omarchy-autologin
@@ -1869,11 +1869,11 @@ check-omarchy-desktop-vm:
             # fact succeeded — plugin-wl#9. v2026.243.1212 adds
             # `artifact_contains_text:`, the OCR modifier the screen_contains assertions
             # below need — plugin-wl#10 on top of sdk#201.
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.272.0438'
             # plugin-quickshell serves the `quickshell:` verb the shell-IPC steps below use.
             # Same mechanism as plugin-wl above: nothing in this VM's image closure requires
             # it, so it rides in through add_candy and the host check runner loads it.
-            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.243.1942'
+            - '@github.com/opencharly/plugin-quickshell/candy/plugin-quickshell:v2026.272.0445'
             # omarchy-autologin writes the sddm drop-in and restarts sddm. It is a CANDY,
             # not a plan step, because a deploy's run: steps are install-timeline steps:
             # `charly check live` runs verify-only and skips every mutating step, and a
@@ -3322,7 +3322,7 @@ check-omarchy-pr-vm-anchored:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -3388,7 +3388,7 @@ check-omarchy-pr-vm-anchored-rc:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -3454,7 +3454,7 @@ check-omarchy-pr-vm-anchored-edge:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -3520,7 +3520,7 @@ check-omarchy-pr-vm-anchored-dev:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.241.1407'
+            - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -3622,7 +3622,7 @@ check-omarchy-pr-vm-visual:
         disposable: true
         lifecycle: dev
         add_candy:
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.272.0438'
             - omarchy-autologin
             - omarchy-pr-9345
         install_opts:
@@ -3672,7 +3672,7 @@ check-omarchy-record-gif:
         disposable: true
         lifecycle: dev
         add_candy:
-            - '@github.com/opencharly/plugin-record/candy/plugin-record:v2026.246.1624'
+            - '@github.com/opencharly/plugin-record/candy/plugin-record:v2026.272.0412'
         plan:
             - check: start a terminal recording
               id: record-start
@@ -3728,7 +3728,7 @@ check-omarchy-pr-9912-vm:
             false error.
         add_candy:
             - omarchy-autologin
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.244.0851'
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.272.0438'
         install_opts:
             allow_repo_changes: true
             allow_root_tasks: true
@@ -3776,16 +3776,16 @@ check-instrument-omarchy-vm:
         disposable: true
         lifecycle: dev
         add_candy:
-            - '@github.com/opencharly/layer-tmux:v2026.240.0202'
-            - '@github.com/opencharly/layer-asciinema:v2026.246.1622'
+            - '@github.com/opencharly/layer-tmux:v2026.272.0425'
+            - '@github.com/opencharly/layer-asciinema:v2026.273.1825'
             # The instrument verbs' serving plugins, declared EXPLICITLY (the bed knows
             # which instruments it runs — core never maps a verb to a plugin). These are
             # HOST-side plugin candies: they land in the plugin registry scan so the
             # instrument live-start + evidence phase dispatch resolve, and their own
             # deploy plans are benign deterministic checks.
-            - '@github.com/opencharly/plugin-spice/candy/plugin-spice:v2026.248.2114'
-            - '@github.com/opencharly/plugin-record/candy/plugin-record:v2026.248.1204'
-            - '@github.com/opencharly/plugin-media/candy/plugin-media:v2026.248.2115'
+            - '@github.com/opencharly/plugin-spice/candy/plugin-spice:v2026.272.0430'
+            - '@github.com/opencharly/plugin-record/candy/plugin-record:v2026.272.0412'
+            - '@github.com/opencharly/plugin-media/candy/plugin-media:v2026.272.1009'
         # update_gate: skip — the instruments are [live]-only (they do not span the
         # rebuild), and the omarchy clone's full destroy+recreate stalls at the
         # initramfs hibernate/resume attempt after the force-stop (RCA 2026-09-06:
@@ -4153,7 +4153,7 @@ check-cua-container-disk-vm:
             # SHIPS the driver, so it needs no layer-cua candies — but WITHOUT the plugin-cua
             # pin the `cua:` steps SKIP as an unknown verb and a skipped step reads as
             # not-failed, so the driver assertions below would silently assert nothing.
-            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.269.1301'
+            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.272.0027'
         plan:
             - check: the pulled containerDisk booted the guest to a reachable SSH session
               id: cua-cd-guest-reachable
@@ -4250,12 +4250,12 @@ check-cua-omarchy-vm:
             check-cua-container-disk-vm bed against Cua's own Fleet image, whose app set and
             pool resolve the target.
         add_candy:
-            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.269.1301'
-            - '@github.com/opencharly/layer-cua/candy/cua-driver:v2026.269.1859'
-            - '@github.com/opencharly/layer-cua/candy/cua-session:v2026.269.1859'
-            - '@github.com/opencharly/layer-cua/candy/cua-computer-server:v2026.269.1859'
-            - '@github.com/opencharly/layer-cua/candy/cua-guest:v2026.269.1859'
-            - '@github.com/opencharly/layer-cua/candy/cua-hyprland-plugin:v2026.269.1859'
+            - '@github.com/opencharly/plugin-cua/candy/plugin-cua:v2026.272.0027'
+            - '@github.com/opencharly/layer-cua/candy/cua-driver:v2026.272.0010'
+            - '@github.com/opencharly/layer-cua/candy/cua-session:v2026.272.0010'
+            - '@github.com/opencharly/layer-cua/candy/cua-computer-server:v2026.272.0010'
+            - '@github.com/opencharly/layer-cua/candy/cua-guest:v2026.272.0010'
+            - '@github.com/opencharly/layer-cua/candy/cua-hyprland-plugin:v2026.272.0010'
             - omarchy-autologin
         install_opts:
             allow_root_tasks: true

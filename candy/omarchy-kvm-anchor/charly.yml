@@ -10,7 +10,7 @@ omarchy-kvm-anchor:
             that makes the kind provider connect during load (the eval-pr/plugin-
             pipeline pattern). See the omarchy-jetkvm-install plan's RDD finding B.
         candy:
-            - '@github.com/opencharly/plugin-jetkvm/candy/plugin-jetkvm:v2026.267.2212'
+            - '@github.com/opencharly/plugin-jetkvm/candy/plugin-jetkvm:v2026.272.0236'
         plan:
             # NON-VACUOUS by construction: the predicate reads ONLY the `candy:`
             # list block (sed extracts between the `candy:` key and the `plan:`

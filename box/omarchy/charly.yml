@@ -37,7 +37,7 @@ omarchy:
             - omarchy
             - arch
         candy:
-            - '@github.com/opencharly/layer-omarchy-base/candy/omarchy-base:v2026.242.0701'
+            - '@github.com/opencharly/layer-omarchy-base/candy/omarchy-base:v2026.272.0437'
         plan:
             # The layer asserts everything about the package sources and runtime; this
             # box asserts only what is true of the BOX and of no layer — that the
@@ -94,7 +94,7 @@ charly-mise-builder:
         platform:
             - linux/amd64
         candy:
-            - '@github.com/opencharly/plugin-mise/candy/curl-tar:v2026.242.2133'
+            - '@github.com/opencharly/plugin-mise/candy/curl-tar:v2026.272.1055'
         description: |-
             Omarchy stage base for the mise builder (curl+tar toolchain) — based on the
             REAL omarchy box so the whole check-charly-mise image chain is Omarchy. The

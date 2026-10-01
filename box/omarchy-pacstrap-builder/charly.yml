@@ -47,7 +47,7 @@ omarchy-pacstrap-builder:
             # present and falls back to the mounted TARGET's copy otherwise
             # (`cp /usr/share/limine/... || cp {{.Mnt}}/usr/share/limine/...`), and the
             # target always has it because `limine` is in omarchy's pacstrap base_package.
-            - '@github.com/opencharly/layer-pacstrap-builder:v2026.239.1633'
+            - '@github.com/opencharly/layer-pacstrap-builder:v2026.272.0421'
         plan:
             # The layer asserts its own binaries. This box asserts the one thing no layer
             # can: that building on the Omarchy base actually kept Omarchy's package
