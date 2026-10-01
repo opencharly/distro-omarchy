@@ -33,7 +33,7 @@ defaults:
 import:
     # The Arch base and builder stack lives in opencharly/distro-arch. One-directional:
     # arch imports nothing back.
-    - arch: '@github.com/opencharly/distro-arch:v2026.273.0909'
+    - arch: '@github.com/opencharly/distro-arch:v2026.274.0532'
 discover:
     - path: box
       recursive: true
