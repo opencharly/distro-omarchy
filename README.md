@@ -85,7 +85,8 @@ dockerd, dkms — belong to the machine images, not to this pod-safe base.
 
 - `charly.yml` — the root manifest: the `arch` namespace import, the `discover:`
   tree, the `kind: jetkvm` installer device, the inline VM and check-bed
-  entities, and the embedded `skill:` entities.
+  entities, and the `skill:` entities as **routing metadata only** — their
+  bodies live under `.agents/skills/<name>/SKILL.md`.
 - `box/<name>/charly.yml` — one manifest per box (and nested fixture candies).
 - `candy/<name>/charly.yml` — the Omarchy-exclusive candy layers.
 - `scripts/omarchy-rollup.py` — the upstream-release rollup helper.
