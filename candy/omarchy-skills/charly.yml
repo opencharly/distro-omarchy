@@ -4,9 +4,11 @@
 #  name a CANDY. An image — a `candy:` node carrying `base:`/`from:` — has no source directory: the
 #  loader folds it into the image set and never the layer set, so an image-owned skill's prose can
 #  never be read AND the node is silently absent from the `ai.opencharly.skill` OCI label.
-#  The 2 `skill:` nodes below were all owned by an image; this candy owns them instead, and their
-#  bodies live beside this manifest under `.agents/skills/<name>/SKILL.md` (the Agent-Skills
-#  standard tree) — the one place the marketplace/docs generators and the label projection read.
+#  The THREE `skill:` nodes below had owners that cannot hold prose: `omarchy` and `omarchy-cstream`
+#  were owned by IMAGES, and `omarchy-vm` by the `omarchy-vm` `kind: vm` entity — a VM entity carries no
+#  source directory either. This candy owns all three instead, and their bodies live beside this
+#  manifest under `.agents/skills/<name>/SKILL.md` (the Agent-Skills standard tree) — the one place the
+#  marketplace/docs generators and the label projection read.
 #
 #  THE CANDY CARRIES THE PROSE INTO THE IMAGE: composed into every image that carries one of these
 #  skills, it installs the tree at the uid-1000 account's `~/.agents/skills` — the location a
