@@ -1252,7 +1252,7 @@ charly-omarchy:
             # charly installs as a NATIVE pac package from the charly-arch repo. omarchy
             # inherits arch's packaging (distro: [omarchy, arch]), so the layer's `arch:`
             # section applies unchanged and nothing omarchy-specific is needed here.
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
         install_opts:
             # The layer adds the [charly] pacman repo and imports its signing key, which
             # is a repo change by definition.
@@ -1288,7 +1288,7 @@ charly-omarchy-rc:
             golden snapshot; auto-login composed (unattended desktop for visual/recorded
             eval steps).
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -1322,7 +1322,7 @@ charly-omarchy-edge:
             builds + Arch packages) via omarchy-channel-set + omarchy update. Lane-owned;
             clean golden snapshot; auto-login composed.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -1357,7 +1357,7 @@ charly-omarchy-dev:
             lane: a PR is applied by checking out its head in ~/omarchy. Lane-owned; clean
             golden snapshot; auto-login.
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -1547,7 +1547,7 @@ check-charly-omarchy-vm:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             # auto-login: this bed proves the toolchain deploy, and the desktop
             # must also come up unattended (recordings/screenshots show it).
             - omarchy-autologin
@@ -3322,7 +3322,7 @@ check-omarchy-pr-vm-anchored:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -3388,7 +3388,7 @@ check-omarchy-pr-vm-anchored-rc:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -3454,7 +3454,7 @@ check-omarchy-pr-vm-anchored-edge:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
@@ -3520,7 +3520,7 @@ check-omarchy-pr-vm-anchored-dev:
             on_finalize: golden
             keep_venue: true
         add_candy:
-            - '@github.com/opencharly/layer-charly:v2026.274.0345'
+            - '@github.com/opencharly/layer-charly:v2026.281.2113'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
