@@ -3809,20 +3809,6 @@ check-instrument-omarchy-vm:
             - check: the omarchy instrument bed runs its subject steps
               id: subject-prove
               command: 'test -x /usr/bin/omarchy-theme-set-vscode'
-omarchy-cstream-skill:
-    skill:
-        name: omarchy-cstream
-        family: distros
-        owner: omarchy-cstream
-        triggers:
-            - "omarchy-cstream / the streamed Omarchy desktop / pod-cstream / layer-cstream-desktop / Hyprland-over-HTTPS"
-omarchy-skill:
-    skill:
-        name: omarchy
-        family: distros
-        owner: omarchy
-        triggers:
-            - "Omarchy images / `omarchy*` boxes / the `box/omarchy` submodule / `distro: [omarchy, arch]`"
 omarchy-vm-skill:
     skill:
         name: omarchy-vm

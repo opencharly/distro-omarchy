@@ -12,11 +12,21 @@ Canonical files:
 
 - `charly.yml` — the root manifest: the `arch` namespace import, the `discover:`
   tree, the `kind: jetkvm` installer device, the inline VM and check-bed
-  entities, and the `skill:` entities (`omarchy`, `omarchy-cstream`,
-  `omarchy-vm`) as **routing metadata only** — `name`, `family`, `owner` and
-  the `triggers:` that generate the dispatcher rows. Their bodies are authored
-  content and live under `.agents/skills/<name>/SKILL.md`; all three carry
-  `triggers:`.
+  entities, and the `omarchy-vm` `skill:` entity as **routing metadata only**
+  (`name`, `family`, `owner`, `triggers`). KNOWN DEFECT: its body sits at the
+  repo root `.agents/skills/omarchy-vm/SKILL.md`, a path the reader
+  (`<candy source dir>/.agents/skills/<name>/SKILL.md`) never walks, and
+  `omarchy-vm` is a `kind: vm` entity, so it has no owning candy yet — the owner
+  choice is open under opencharly/sdk#434.
+- `candy/omarchy-skills/charly.yml` — the `omarchy-skills` bundle candy PLUS the
+  two `skill:` entities whose only other owner was an image (`omarchy`,
+  `omarchy-cstream`), each with `owner: omarchy-skills`. A skill's `owner:` must
+  be a CANDY: an image is a `candy:` node carrying `base:`/`from:`, so it has no
+  source directory, its skill's prose can never be read and the node never
+  reaches the `ai.opencharly.skill` label (opencharly/sdk#434). The candy is
+  composed into both images that carry one of those skills.
+- `candy/omarchy-skills/.agents/skills/<name>/SKILL.md` — the two skill BODIES,
+  one directory per entity's `name:`, beside the candy that owns them.
 - `box/<name>/charly.yml` — one manifest per box (and nested fixture candies).
 - `candy/<name>/charly.yml` — the Omarchy-exclusive candy layers.
 - `scripts/omarchy-rollup.py` — the upstream-release rollup helper.
@@ -49,9 +59,9 @@ Canonical files:
 ## Modify this repo
 
 - Edit the box manifest under `box/<name>/charly.yml`, the skill's routing node
-  in the root `charly.yml`, and the skill's body under
-  `.agents/skills/<name>/SKILL.md` together — the body is the projected usage
-  source, so a change not mirrored in it leaves the corpus stale.
+  in its OWNING candy's `charly.yml`, and the skill's body under that candy's
+  `.agents/skills/<name>/` together — the body is the projected usage source, so
+  a change not mirrored in it leaves the corpus stale.
 - Keep Omarchy Arch-derived: add an `omarchy:` package arm only where a package
   name genuinely differs from Arch's; otherwise the `distro: arch:` arm applies.
 - charly vendors no Omarchy configuration — do not add a `config/hypr/*.lua` or
