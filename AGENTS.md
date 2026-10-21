@@ -23,8 +23,10 @@ Canonical files:
   source directory either, and no candy owns that VM's payload (the skill spans
   `omarchy-vm`, `omarchy-pacstrap-vm` and the `charly-omarchy` keeper), so the
   bundle owns it too. The candy is composed into both images that carry one of
-  these skills, and all three bodies live beside it under
-  `.agents/skills/<name>/SKILL.md`.
+  these skills, and all three bodies live at THIS REPO'S ROOT under
+  `.agents/skills/<name>/SKILL.md` — never in the owning candy's directory, because the
+  root is the base the marketplace corpus reads and the directory a harness
+  rooted here discovers natively (`deploykit.candyRepoRoot`, opencharly/sdk#445).
 - `box/<name>/charly.yml` — one manifest per box (and nested fixture candies).
 - `candy/<name>/charly.yml` — the Omarchy-exclusive candy layers.
 - `scripts/omarchy-rollup.py` — the upstream-release rollup helper.
@@ -57,9 +59,9 @@ Canonical files:
 ## Modify this repo
 
 - Edit the box manifest under `box/<name>/charly.yml`, the skill's routing node
-  in its OWNING candy's `charly.yml`, and the skill's body under that candy's
-  `.agents/skills/<name>/` together — the body is the projected usage source, so
-  a change not mirrored in it leaves the corpus stale.
+  in its OWNING candy's `charly.yml`, and the skill's body at the repo root
+  (`.agents/skills/<name>/`) together — the body is the projected usage source,
+  so a change not mirrored in it leaves the corpus stale.
 - Keep Omarchy Arch-derived: add an `omarchy:` package arm only where a package
   name genuinely differs from Arch's; otherwise the `distro: arch:` arm applies.
 - charly vendors no Omarchy configuration — do not add a `config/hypr/*.lua` or
