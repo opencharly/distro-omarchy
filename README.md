@@ -84,14 +84,13 @@ dockerd, dkms — belong to the machine images, not to this pod-safe base.
 ## Layout
 
 - `charly.yml` — the root manifest: the `arch` namespace import, the `discover:`
-  tree, the `kind: jetkvm` installer device, the inline VM and check-bed
-  entities, and the `omarchy-vm` `skill:` entity as **routing metadata only**
-  (its body still sits at the repo root `.agents/skills/omarchy-vm/SKILL.md` — a
-  known defect: no owning candy exists yet, see opencharly/sdk#434).
-- `candy/omarchy-skills/charly.yml` — the `omarchy-skills` bundle candy: the two
-  `skill:` entities an IMAGE may not own (opencharly/sdk#434) — `omarchy`,
-  `omarchy-cstream` — composed into both images that carry one of them, with the
-  bodies beside it under `.agents/skills/<name>/SKILL.md`.
+  tree, the `kind: jetkvm` installer device, and the inline VM and check-bed
+  entities. It carries no `skill:` node — every skill is owned by a candy.
+- `candy/omarchy-skills/charly.yml` — the `omarchy-skills` bundle candy: the three
+  `skill:` entities this repo authors (`omarchy`, `omarchy-cstream`,
+  `omarchy-vm`), each owned by the candy rather than by an image or a VM entity,
+  neither of which has a source directory (opencharly/sdk#434). Composed into both
+  images, with the bodies beside it under `.agents/skills/<name>/SKILL.md`.
 - `box/<name>/charly.yml` — one manifest per box (and nested fixture candies).
 - `candy/<name>/charly.yml` — the Omarchy-exclusive candy layers.
 - `scripts/omarchy-rollup.py` — the upstream-release rollup helper.

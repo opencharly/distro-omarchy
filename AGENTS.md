@@ -11,22 +11,20 @@ Arch-derived via the `distro: [omarchy, arch]` tag chain, so no candy needs an
 Canonical files:
 
 - `charly.yml` — the root manifest: the `arch` namespace import, the `discover:`
-  tree, the `kind: jetkvm` installer device, the inline VM and check-bed
-  entities, and the `omarchy-vm` `skill:` entity as **routing metadata only**
-  (`name`, `family`, `owner`, `triggers`). KNOWN DEFECT: its body sits at the
-  repo root `.agents/skills/omarchy-vm/SKILL.md`, a path the reader
-  (`<candy source dir>/.agents/skills/<name>/SKILL.md`) never walks, and
-  `omarchy-vm` is a `kind: vm` entity, so it has no owning candy yet — the owner
-  choice is open under opencharly/sdk#434.
-- `candy/omarchy-skills/charly.yml` — the `omarchy-skills` bundle candy PLUS the
-  two `skill:` entities whose only other owner was an image (`omarchy`,
-  `omarchy-cstream`), each with `owner: omarchy-skills`. A skill's `owner:` must
-  be a CANDY: an image is a `candy:` node carrying `base:`/`from:`, so it has no
-  source directory, its skill's prose can never be read and the node never
-  reaches the `ai.opencharly.skill` label (opencharly/sdk#434). The candy is
-  composed into both images that carry one of those skills.
-- `candy/omarchy-skills/.agents/skills/<name>/SKILL.md` — the two skill BODIES,
-  one directory per entity's `name:`, beside the candy that owns them.
+  tree, the `kind: jetkvm` installer device, and the inline VM and check-bed
+  entities. It carries NO `skill:` node — every skill is owned by a candy.
+- `candy/omarchy-skills/charly.yml` — the `omarchy-skills` bundle candy AND the
+  three `skill:` routing entities (`omarchy`, `omarchy-cstream`, `omarchy-vm`),
+  each with `owner: omarchy-skills`. `omarchy`/`omarchy-cstream` were owned by
+  IMAGES, which the ruling forbids (opencharly/sdk#434): an image is a `candy:`
+  node carrying `base:`/`from:`, so it has no source directory, its skill's prose
+  can never be read and the node never reaches the `ai.opencharly.skill` label.
+  `omarchy-vm` was owned by the `kind: vm` entity `omarchy-vm`, which has no
+  source directory either, and no candy owns that VM's payload (the skill spans
+  `omarchy-vm`, `omarchy-pacstrap-vm` and the `charly-omarchy` keeper), so the
+  bundle owns it too. The candy is composed into both images that carry one of
+  these skills, and all three bodies live beside it under
+  `.agents/skills/<name>/SKILL.md`.
 - `box/<name>/charly.yml` — one manifest per box (and nested fixture candies).
 - `candy/<name>/charly.yml` — the Omarchy-exclusive candy layers.
 - `scripts/omarchy-rollup.py` — the upstream-release rollup helper.

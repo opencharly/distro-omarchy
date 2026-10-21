@@ -3809,13 +3809,6 @@ check-instrument-omarchy-vm:
             - check: the omarchy instrument bed runs its subject steps
               id: subject-prove
               command: 'test -x /usr/bin/omarchy-theme-set-vscode'
-omarchy-vm-skill:
-    skill:
-        name: omarchy-vm
-        family: vm
-        owner: omarchy-vm
-        triggers:
-            - "omarchy VMs / `omarchy-vm` / `charly-omarchy` / `source.kind: iso` / unattended archinstall"
 #  The CONSUME bed: pull Cua's OWN published Omarchy Fleet image (a KubeVirt containerDisk)
 #  and boot it locally with the `container_disk` VM source, then assert the same driver
 #  contract. This proves charly can consume a Cua Fleet image WITHOUT KubeVirt — the

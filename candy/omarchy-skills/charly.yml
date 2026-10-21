@@ -14,9 +14,9 @@
 omarchy-skills:
     candy:
         description: |
-            Skill-prose bundle for the omarchy image family: owns the `omarchy`, `omarchy-cstream` `skill:`
-            entities (sibling nodes in this file) and carries their bodies under
-            .agents/skills/<name>/SKILL.md.
+            Skill-prose bundle for the omarchy image family: owns the `omarchy`, `omarchy-cstream`
+            and `omarchy-vm` `skill:` entities (sibling nodes in this file) and carries their
+            bodies under .agents/skills/<name>/SKILL.md.
             It exists because a `skill:` node's owner must be a candy, not an image — an image has
             no source directory, so an image-owned node's prose is unreadable and the skill is
             absent from the ai.opencharly.skill OCI label (opencharly/sdk#434).
@@ -39,7 +39,7 @@ omarchy-skills:
                   set -eu
                   H="$(awk -F: '$3 == 1000 { print $6 }' /etc/passwd)"
                   test -n "$H"
-                  for s in omarchy omarchy-cstream; do
+                  for s in omarchy omarchy-cstream omarchy-vm; do
                       test -s "$H/.agents/skills/$s/SKILL.md"
                   done
 omarchy-skill:
@@ -56,3 +56,10 @@ omarchy-cstream-skill:
         owner: omarchy-skills
         triggers:
             - "omarchy-cstream / the streamed Omarchy desktop / pod-cstream / layer-cstream-desktop / Hyprland-over-HTTPS"
+omarchy-vm-skill:
+    skill:
+        name: omarchy-vm
+        family: vm
+        owner: omarchy-skills
+        triggers:
+            - "omarchy VMs / `omarchy-vm` / `charly-omarchy` / `source.kind: iso` / unattended archinstall"
