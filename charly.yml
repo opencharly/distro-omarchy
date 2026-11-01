@@ -3321,6 +3321,13 @@ check-omarchy-pr-vm-anchored:
         snapshot:
             on_finalize: golden
             keep_venue: true
+            # force_stop: this bed's keeper is a full Omarchy desktop, which can
+            # ignore ACPI past the stop grace — measured (run 2026.288.0449): the
+            # graceful stop failed after the full 3m0s cap while every step that
+            # consumes the change had passed, and the force path released the same
+            # domain in 38s leaving it `libvirt shut off` (still DEFINED, so the
+            # venue stays KEPT). charly#934.
+            force_stop: true
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.274.0345'
             - omarchy-autologin
