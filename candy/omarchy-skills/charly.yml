@@ -1,0 +1,67 @@
+#  opencharly/omarchy — the skill-prose bundle for the omarchy image family.
+#
+#  WHY THIS CANDY EXISTS (opencharly/sdk#434, operator ruling): a `skill:` node's `owner:` must
+#  name a CANDY. An image — a `candy:` node carrying `base:`/`from:` — has no source directory: the
+#  loader folds it into the image set and never the layer set, so an image-owned skill's prose can
+#  never be read AND the node is silently absent from the `ai.opencharly.skill` OCI label.
+#  The THREE `skill:` nodes below had owners that cannot hold prose: `omarchy` and `omarchy-cstream`
+#  were owned by IMAGES, and `omarchy-vm` by the `omarchy-vm` `kind: vm` entity — a VM entity carries no
+#  source directory either. This candy owns all three instead, and their bodies live beside this
+#  manifest under `.agents/skills/<name>/SKILL.md` (the Agent-Skills standard tree) — the one place the
+#  marketplace/docs generators and the label projection read.
+#
+#  THE CANDY CARRIES THE PROSE INTO THE IMAGE: composed into every image that carries one of these
+#  skills, it installs the tree at the uid-1000 account's `~/.agents/skills` — the location a
+#  harness running inside the image reads — and its ADE `check:` proves the install landed.
+omarchy-skills:
+    candy:
+        description: |
+            Skill-prose bundle for the omarchy image family: owns the `omarchy`, `omarchy-cstream`
+            and `omarchy-vm` `skill:` entities (sibling nodes in this file) and carries their
+            bodies under .agents/skills/<name>/SKILL.md.
+            It exists because a `skill:` node's owner must be a candy, not an image — an image has
+            no source directory, so an image-owned node's prose is unreadable and the skill is
+            absent from the ai.opencharly.skill OCI label (opencharly/sdk#434).
+            Composed into every image that carries one of those skills; installs the tree at the
+            uid-1000 account's ~/.agents/skills so a harness in the image reads the same prose the
+            label carries.
+        plan:
+            - run: install the skill tree at the uid-1000 account's Agent-Skills location
+              id: install-skill-tree
+              copy: .agents/skills
+              to: "${HOME}/.agents/skills"
+              run_as: "${USER}"
+              comment: the bodies the ai.opencharly.skill label projects, made readable in-image
+            - check: every skill body this candy carries is installed under the uid-1000 account's ~/.agents/skills
+              id: skill-bodies-installed
+              context:
+                - build
+              exit_status: 0
+              command: |
+                  set -eu
+                  H="$(awk -F: '$3 == 1000 { print $6 }' /etc/passwd)"
+                  test -n "$H"
+                  for s in omarchy omarchy-cstream omarchy-vm; do
+                      test -s "$H/.agents/skills/$s/SKILL.md"
+                  done
+omarchy-skill:
+    skill:
+        name: omarchy
+        family: distros
+        owner: omarchy-skills
+        triggers:
+            - "Omarchy images / `omarchy*` boxes / the `box/omarchy` submodule / `distro: [omarchy, arch]`"
+omarchy-cstream-skill:
+    skill:
+        name: omarchy-cstream
+        family: distros
+        owner: omarchy-skills
+        triggers:
+            - "omarchy-cstream / the streamed Omarchy desktop / pod-cstream / layer-cstream-desktop / Hyprland-over-HTTPS"
+omarchy-vm-skill:
+    skill:
+        name: omarchy-vm
+        family: vm
+        owner: omarchy-skills
+        triggers:
+            - "omarchy VMs / `omarchy-vm` / `charly-omarchy` / `source.kind: iso` / unattended archinstall"
