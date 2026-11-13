@@ -3321,8 +3321,27 @@ check-omarchy-pr-vm-anchored:
         snapshot:
             on_finalize: golden
             keep_venue: true
+            # force_stop: this bed's keeper is a full Omarchy desktop, which can
+            # ignore ACPI past the stop grace — measured (run 2026.288.0449): the
+            # graceful stop failed after the full 3m0s cap while every step that
+            # consumes the change had passed, and the force path released the same
+            # domain in 38s leaving it `libvirt shut off` (still DEFINED, so the
+            # venue stays KEPT). charly#934.
+            force_stop: true
         add_candy:
             - '@github.com/opencharly/layer-charly:v2026.292.2352'
+            # The bed deploys onto a VM, so the "vm" deploy substrate must be in this
+            # bed's OWN candy closure. Measured on charly 2026.317.0814 (run
+            # 2026.317.1427): without it `deploy add` refuses 33.09s in, before a single
+            # check step runs --
+            #   the "vm" deploy substrate is not available in this project — its deploy
+            #   plugin (plugin-deploy-vm) is not in the candy closure
+            # -- so the bed could never reach the keeper stop that this PR's
+            # `snapshot.force_stop` declaration changes. No other entity in this repo
+            # composed it (30 `vm:` deploy entries, 0 with the candy in their closure),
+            # so this bed fixes its own closure; the repo-wide remainder is
+            # opencharly/distro-omarchy#82.
+            - '@github.com/opencharly/plugin-deploy-vm/candy/plugin-deploy-vm:v2026.314.0712'
             - omarchy-autologin
             - omarchy-channel-bootstrap
         install_opts:
